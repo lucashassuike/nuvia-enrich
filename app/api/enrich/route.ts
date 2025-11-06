@@ -52,15 +52,15 @@ export async function POST(request: NextRequest) {
 
     // Check environment variables and headers for API keys
     const azureApiKey = process.env.AZURE_OPENAI_API_KEY || request.headers.get('X-Azure-API-Key');
-    const firecrawlApiKey = process.env.FIRECRAWL_API_KEY || request.headers.get('X-Firecrawl-API-Key');
+    const exploriumApiKey = process.env.EXPLORIUM_API_KEY || request.headers.get('X-Explorium-API-Key');
     const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
     const azureDeployment = process.env.AZURE_OPENAI_DEPLOYMENT;
     const azureApiVersion = process.env.AZURE_OPENAI_API_VERSION;
     
-    if (!azureApiKey || !firecrawlApiKey || !azureEndpoint || !azureDeployment || !azureApiVersion) {
+    if (!azureApiKey || !exploriumApiKey || !azureEndpoint || !azureDeployment || !azureApiVersion) {
       console.error('Missing API keys:', { 
         hasAzureApiKey: !!azureApiKey,
-        hasFirecrawl: !!firecrawlApiKey,
+        hasExplorium: !!exploriumApiKey,
         hasAzureEndpoint: !!azureEndpoint,
         hasAzureDeployment: !!azureDeployment,
         hasAzureApiVersion: !!azureApiVersion
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     console.log(`[STRATEGY] Using ${strategyName} - Advanced multi-agent architecture with specialized agents`);
     const enrichmentStrategy = new AgentEnrichmentStrategy(
       azureApiKey,
-      firecrawlApiKey,
+      exploriumApiKey,
       azureEndpoint,
       azureDeployment,
       azureApiVersion

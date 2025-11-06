@@ -1,69 +1,61 @@
 import { Agent, Tool } from '@openai/agents';
 import { z } from 'zod';
-import { createWebsiteScraperTool } from '../tools/website-scraper-tool';
-import { createSmartSearchTool } from '../tools/smart-search-tool';
+import { createExploriumTool } from '../tools/explorium-tool';
+import { createWebResearchTool } from '../tools/web-research-tool';
+import { OpenAIService } from '../../services/openai';
 
-const DiscoveryResult = z.object({
-  companyName: z.string().describe('Official company name'),
-  website: z.string().url().describe('Primary company website'),
-  description: z.string().describe('Brief description of what the company does'),
-  domain: z.string().describe('Primary domain extracted from email or discovered'),
-  confidence: z.record(z.string(), z.number()).describe('Confidence scores for each field'),
-  sources: z.record(z.string(), z.array(z.string())).describe('Source URLs for each field'),
+const Signal = z.object({
+  signal_id: z.string(),
+  signal_name: z.string(),
+  category: z.enum(['organizacional', 'pessoal', 'mercado', 'performance']),
+  weight: z.string(),
+  date: z.string(),
+  title: z.string(),
+  description: z.string(),
+  source_url: z.string().url(),
+  confidence: z.enum(['high', 'medium', 'low']),
+  recommended_action: z.string(),
+  copy_angle: z.string(),
 });
 
-export function createDiscoveryAgent(firecrawlApiKey: string) {
+const CompanyAnalysisResult = z.object({
+  company_analysis: z.object({
+    company_name: z.string(),
+    search_date: z.string(),
+    data_freshness: z.string(),
+    overall_signal_strength: z.enum(['high', 'medium', 'low']),
+    priority_signals: z.array(Signal),
+    total_signals_found: z.number(),
+    signals_by_category: z.object({
+      organizacional: z.number(),
+      mercado: z.number(),
+      performance: z.number(),
+    }),
+    key_insights: z.string(),
+    personalization_hooks: z.array(z.string()),
+  }),
+});
+
+export function createDiscoveryAgent(exploriumApiKey: string, openai: OpenAIService) {
   console.log('[AGENT-DISCOVERY] Creating Discovery Agent');
   
   return new Agent({
     name: 'Discovery Agent',
     
-    instructions: `You are the Discovery Agent - the first line of company identification.
-    
-    Your mission is to establish the foundational company information from an email address.
+    instructions: `You are the Discovery Agent. Your mission is to enrich a company's data and find actionable signals for outbound prospecting.
     
     PROCESS:
-    1. Extract domain from email (e.g., john@acme.com -> acme.com)
-    2. Try to access the company website directly (https://[domain])
-    3. If direct access fails (timeout, 404, etc), implement fallback strategy:
-       a. Search for "[domain]" company official website
-       b. Search for site:[domain] about
-       c. Try domain without TLD as company name
-       d. Search for email domain [domain] company information
-    4. If all searches fail, make intelligent inferences from the domain
-    
-    EXTRACTION PRIORITIES:
-    - Company Name: Look for official name in title, about page, or headers
-      * Clean common suffixes like "| Official Website", "- Home", etc.
-      * If not found, try to extract from "About [Company]" patterns
-      * Look for patterns like "Welcome to [Company]", "[Company] - Leading...", etc.
-      * Check for company name in meta tags, particularly og:site_name
-      * For known tech companies, use proper casing (e.g., "OneTrust" not "Onetrust")
-      * Last resort: use cleaned domain name with proper capitalization
-    - Website: Confirm the primary domain (might differ from email domain)
-    - Description: Find a concise description of what the company does
-      * Check meta descriptions, about sections, mission statements
-      * Look for "We are/help/provide/build" patterns
-    
-    FALLBACK STRATEGIES:
-    - When website is unreachable, ALWAYS try multiple search queries
-    - Use both exact domain search and company name variations
-    - If no data found, provide domain-based inferences with low confidence
-    
-    CONFIDENCE SCORING:
-    - 0.95-1.0: Data from company's own website
-    - 0.85-0.94: Data from reputable business databases
-    - 0.70-0.84: Data from news articles or press releases
-    - 0.30-0.69: Inferred from search results or domain patterns
-    - Below 0.30: Pure domain-based inference
-    
-    IMPORTANT: Never return empty results. Always provide at least domain-based inferences.`,
+    1. Extract the domain from the input email (e.g., john@acme.com -> acme.com).
+    2. Use the 'explorium_enrich' tool to get initial company data (name, industry, country, competitors).
+    3. Take the enriched data from Explorium and use the 'web_research' tool to find recent signals.
+    4. The 'web_research' tool will perform a comprehensive search and return a structured JSON with the top signals.
+    5. Return the JSON output from the 'web_research' tool as the final result.`,
     
     tools: [
-      createWebsiteScraperTool(firecrawlApiKey) as unknown as Tool<unknown>,
-      createSmartSearchTool(firecrawlApiKey, 'discovery') as unknown as Tool<unknown>,
+      createExploriumTool(exploriumApiKey) as unknown as Tool<unknown>,
+      createWebResearchTool(openai) as unknown as Tool<unknown>,
     ],
     
-    outputType: DiscoveryResult,
+    outputType: CompanyAnalysisResult,
   });
 }
