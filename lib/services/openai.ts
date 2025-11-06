@@ -1,13 +1,18 @@
-import OpenAI from 'openai';
+import { AzureOpenAI } from 'openai';
 import { z } from 'zod';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import type { EnrichmentField, EnrichmentResult } from '../types';
 
 export class OpenAIService {
-  private client: OpenAI;
+  private client: AzureOpenAI;
 
-  constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
+  constructor(apiKey: string, endpoint: string, deployment: string, apiVersion: string) {
+    this.client = new AzureOpenAI({
+      apiKey,
+      endpoint,
+      deployment,
+      apiVersion,
+    });
   }
 
   createEnrichmentSchema(fields: EnrichmentField[]) {

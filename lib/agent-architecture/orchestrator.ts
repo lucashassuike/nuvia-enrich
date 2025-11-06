@@ -10,10 +10,13 @@ export class AgentOrchestrator {
   
   constructor(
     private firecrawlApiKey: string,
-    private openaiApiKey: string
+    private openaiApiKey: string,
+    private azureEndpoint: string,
+    private azureDeployment: string,
+    private azureApiVersion: string
   ) {
     this.firecrawl = new FirecrawlService(firecrawlApiKey);
-    this.openai = new OpenAIService(openaiApiKey);
+    this.openai = new OpenAIService(openaiApiKey, azureEndpoint, azureDeployment, azureApiVersion);
   }
   
   async enrichRow(
