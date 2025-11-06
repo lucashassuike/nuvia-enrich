@@ -8,8 +8,11 @@ export class AgentEnrichmentStrategy {
   constructor(
     openaiApiKey: string,
     firecrawlApiKey: string,
+    azureEndpoint: string,
+    azureDeployment: string,
+    azureApiVersion: string
   ) {
-    this.orchestrator = new AgentOrchestrator(firecrawlApiKey, openaiApiKey);
+    this.orchestrator = new AgentOrchestrator(firecrawlApiKey, openaiApiKey, azureEndpoint, azureDeployment, azureApiVersion);
   }
   
   async enrichRow(

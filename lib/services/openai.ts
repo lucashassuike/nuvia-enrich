@@ -1,13 +1,18 @@
-import OpenAI from 'openai';
+import { AzureOpenAI } from 'openai';
 import { z } from 'zod';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import type { EnrichmentField, EnrichmentResult } from '../types';
 
 export class OpenAIService {
-  private client: OpenAI;
+  private client: AzureOpenAI;
 
-  constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
+  constructor(apiKey: string, endpoint: string, deployment: string, apiVersion: string) {
+    this.client = new AzureOpenAI({
+      apiKey,
+      endpoint,
+      deployment,
+      apiVersion,
+    });
   }
 
   createEnrichmentSchema(fields: EnrichmentField[]) {
@@ -139,7 +144,7 @@ export class OpenAIService {
       }
 
       const response = await this.client.chat.completions.create({
-        model: 'gpt-5',
+        model: 'gpt-4.1',
         messages: [
           {
             role: 'system',
@@ -375,7 +380,7 @@ DOMAIN PARKING/SALE PAGES:
       }
       
       const response = await this.client.chat.completions.create({
-        model: 'gpt-5',
+        model: 'gpt-4.1',
         messages: [
           {
             role: 'system',
@@ -766,7 +771,7 @@ REMEMBER: Extract exact_text from the "=== ACTUAL CONTENT BELOW ===" section, NO
         .join('\n');
       
       const response = await this.client.chat.completions.create({
-        model: 'gpt-5-mini',
+        model: 'gpt-4.1',
         messages: [
           {
             role: 'system',
@@ -836,7 +841,7 @@ ${schemaDescription}
   ): Promise<string[]> {
     try {
       const response = await this.client.chat.completions.create({
-        model: 'gpt-5',
+        model: 'gpt-4.1',
         messages: [
           {
             role: 'system',
@@ -903,7 +908,7 @@ Return ONLY the search query, nothing else.`
       });
 
       const response = await this.client.chat.completions.create({
-        model: 'gpt-5-mini',
+        model: 'gpt-4.1',
         messages,
         temperature: 0.3,
         max_tokens: 100,
@@ -975,7 +980,7 @@ Question: ${question}
       });
 
       const response = await this.client.chat.completions.create({
-        model: 'gpt-5-mini',
+        model: 'gpt-4.1',
         messages,
         temperature: 0.1, // Lower temperature for more consistent behavior
         max_tokens: 500,
@@ -1009,7 +1014,7 @@ Question: ${question}
   ): Promise<{ url: string; title?: string }> {
     try {
       const response = await this.client.chat.completions.create({
-        model: 'gpt-5-mini',
+        model: 'gpt-4.1',
         messages: [
           {
             role: 'system',
@@ -1068,7 +1073,7 @@ Be concise but informative. If the content doesn't contain the answer, say so. W
       });
 
       const response = await this.client.chat.completions.create({
-        model: 'gpt-5',
+        model: 'gpt-4.1',
         messages,
         temperature: 0.7,
         max_tokens: 500,
