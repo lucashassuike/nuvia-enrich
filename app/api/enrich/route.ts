@@ -51,15 +51,15 @@ export async function POST(request: NextRequest) {
     activeSessions.set(sessionId, abortController);
 
     // Check environment variables and headers for API keys
-    const openaiApiKey = process.env.OPENAI_API_KEY || request.headers.get('X-OpenAI-API-Key');
+    const azureApiKey = process.env.AZURE_OPENAI_API_KEY || request.headers.get('X-Azure-API-Key');
     const firecrawlApiKey = process.env.FIRECRAWL_API_KEY || request.headers.get('X-Firecrawl-API-Key');
     const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
     const azureDeployment = process.env.AZURE_OPENAI_DEPLOYMENT;
     const azureApiVersion = process.env.AZURE_OPENAI_API_VERSION;
     
-    if (!openaiApiKey || !firecrawlApiKey || !azureEndpoint || !azureDeployment || !azureApiVersion) {
+    if (!azureApiKey || !firecrawlApiKey || !azureEndpoint || !azureDeployment || !azureApiVersion) {
       console.error('Missing API keys:', { 
-        hasOpenAI: !!openaiApiKey, 
+        hasAzureApiKey: !!azureApiKey,
         hasFirecrawl: !!firecrawlApiKey,
         hasAzureEndpoint: !!azureEndpoint,
         hasAzureDeployment: !!azureDeployment,
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     
     console.log(`[STRATEGY] Using ${strategyName} - Advanced multi-agent architecture with specialized agents`);
     const enrichmentStrategy = new AgentEnrichmentStrategy(
-      openaiApiKey,
+      azureApiKey,
       firecrawlApiKey,
       azureEndpoint,
       azureDeployment,

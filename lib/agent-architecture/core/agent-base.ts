@@ -78,7 +78,7 @@ export abstract class BaseAgent<TInput = unknown, TOutput = unknown> {
     const allTools = [...tools, ...handoffTools];
     
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-5',
+      model: 'gpt-4.1',
       messages,
       tools: allTools.length > 0 ? allTools : undefined,
       response_format: this.outputSchema ? { type: 'json_object' } : undefined,
