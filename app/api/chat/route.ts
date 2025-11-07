@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FirecrawlService } from '@/lib/services/firecrawl';
+import { createAzureOpenAISearchTool } from '@/lib/agent-architecture/tools/azure-openai-search-tool';
+import { createAzureOpenAIScraperTool } from '@/lib/agent-architecture/tools/azure-openai-scraper-tool';
 import { OpenAIService } from '@/lib/services/openai';
 
 export const runtime = 'nodejs';
@@ -18,24 +19,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get API keys
-    const openaiApiKey = process.env.OPENAI_API_KEY || request.headers.get('X-OpenAI-API-Key');
-    const firecrawlApiKey = process.env.FIRECRAWL_API_KEY || request.headers.get('X-Firecrawl-API-Key');
-
-    if (!openaiApiKey || !firecrawlApiKey) {
-      return NextResponse.json(
-        { error: 'Missing API keys' },
-        { status: 500 }
-      );
-    }
+    // Azure OpenAI configuration
+    const openaiApiKey =
+      process.env.AZURE_OPENAI_API_KEY || request.headers.get('X-Azure-OpenAI-API-Key') || '';
 
     // Create abort controller for this query
     const abortController = new AbortController();
     const queryId = sessionId || `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     activeQueries.set(queryId, abortController);
 
-    const firecrawl = new FirecrawlService(firecrawlApiKey);
-    const openai = new OpenAIService(openaiApiKey);
+    const azureEndpoint =
+      process.env.AZURE_OPENAI_ENDPOINT || request.headers.get('X-Azure-OpenAI-Endpoint') || '';
+    const azureDeployment =
+      process.env.AZURE_OPENAI_DEPLOYMENT || request.headers.get('X-Azure-OpenAI-Deployment') || '';
+    const azureApiVersion =
+      process.env.AZURE_OPENAI_API_VERSION || request.headers.get('X-Azure-OpenAI-Api-Version') || '';
+
+    if (!openaiApiKey || !azureEndpoint || !azureDeployment || !azureApiVersion) {
+      return NextResponse.json(
+        { error: 'Missing Azure OpenAI configuration (apiKey/endpoint/deployment/apiVersion)' },
+        { status: 500 }
+      );
+    }
+
+    const openai = new OpenAIService(
+      openaiApiKey,
+      azureEndpoint,
+      azureDeployment,
+      azureApiVersion
+    );
 
     // Create streaming response
     const encoder = new TextEncoder();
@@ -131,7 +143,12 @@ export async function POST(request: NextRequest) {
             )
           );
 
-          const searchResults = await firecrawl.search(searchQuery, { limit: 5 });
+          const searchTool = createAzureOpenAISearchTool(openai, 'business');
+          const searchResults = await searchTool.execute({
+            queries: [searchQuery],
+            targetField: 'answer',
+            context,
+          });
 
           if (searchResults.length === 0) {
             controller.enqueue(
@@ -168,7 +185,10 @@ export async function POST(request: NextRequest) {
             )
           );
 
-          const bestSource = await openai.selectBestSource(searchResults, question);
+          const bestSource = await openai.selectBestSource(
+            searchResults.map(r => ({ url: r.url, title: r.title, description: r.description })),
+            question
+          );
 
           controller.enqueue(
             encoder.encode(
@@ -193,7 +213,8 @@ export async function POST(request: NextRequest) {
             )
           );
 
-          const scrapedData = await firecrawl.scrapeUrl(bestSource.url);
+          const scraperTool = createAzureOpenAIScraperTool(openai);
+          const scrapedData = await scraperTool.execute({ url: bestSource.url, targetFields: [] });
 
           controller.enqueue(
             encoder.encode(
@@ -219,7 +240,7 @@ export async function POST(request: NextRequest) {
           // Step 5: Generate conversational response
           const response = await openai.generateConversationalResponse(
             question,
-            scrapedData.data?.markdown || '',
+            (scrapedData as any).rawContent || '',
             {
               ...context,
               conversationHistory

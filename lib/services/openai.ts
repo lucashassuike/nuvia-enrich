@@ -1085,4 +1085,20 @@ Be concise but informative. If the content doesn't contain the answer, say so. W
       return "I encountered an error while processing your question.";
     }
   }
+
+  async chatCompletionJSON(systemPrompt: string, userPrompt: string): Promise<any> {
+    const response = await this.client.chat.completions.create({
+      model: 'gpt-4.1',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      response_format: { type: 'json_object' },
+    });
+    const content = response.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('No content in response from OpenAI');
+    }
+    return JSON.parse(content);
+  }
 }

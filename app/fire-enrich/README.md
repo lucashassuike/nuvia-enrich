@@ -4,7 +4,7 @@ A powerful AI-powered CSV enrichment tool that transforms basic contact lists in
 
 ## Overview
 
-Fire Enrich is an advanced data enrichment platform that takes CSV files containing company email addresses and automatically enhances them with valuable business information. Built on a sophisticated multi-agent architecture, it leverages Firecrawl for web scraping and OpenAI GPT-4 for intelligent data extraction.
+Fire Enrich is an advanced data enrichment platform that takes CSV files containing company email addresses and automatically enhances them with valuable business information. Built on a sophisticated multi-agent architecture, it leverages Azure OpenAI for search/scrape and GPT-based intelligent data extraction.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ Fire Enrich employs five specialized AI agents, each optimized for specific data
                               ┌────────────────────────────┼────────────────────┐
                               │                            │                    │
                     ┌─────────▼────────┐      ┌───────────▼──────┐   ┌─────────▼────────┐
-                    │ FirecrawlService │      │  OpenAIService   │   │SpecializedAgents│
+│ Azure Search/Scrape │    │  OpenAIService   │   │SpecializedAgents│
                     │  (Web Scraping)  │      │ (GPT-4 Extract)  │   │   (AI Agents)    │
                     └──────────────────┘      └──────────────────┘   └──────────────────┘
 ```
@@ -63,7 +63,7 @@ Toggle agent mode → Preview enrichment plan
 For each row:
 ├─ Extract company from email
 ├─ Generate search queries
-├─ Scrape multiple sources (Firecrawl)
+├─ Scrape multiple sources (Azure OpenAI Search/Scrape)
 ├─ Select specialized agents
 ├─ Extract structured data (GPT-4)
 ├─ Stream results via SSE
@@ -85,17 +85,17 @@ Includes confidence scores and sources
 
 ### API Key Configuration
 
-Fire Enrich requires two API keys:
+Fire Enrich supports Azure OpenAI or OpenAI:
 
-#### 1. Firecrawl API Key
-- Sign up at [firecrawl.dev](https://firecrawl.dev)
-- Get your API key from the dashboard
-- Used for web scraping and search
+#### Option A: Azure OpenAI (recommended)
+- Set the following in `.env.local`:
+  - `AZURE_OPENAI_API_KEY`
+  - `AZURE_OPENAI_ENDPOINT`
+  - `AZURE_OPENAI_DEPLOYMENT`
+  - `AZURE_OPENAI_API_VERSION`
 
-#### 2. OpenAI API Key
-- Sign up at [platform.openai.com](https://platform.openai.com)
-- Create an API key with GPT-4 access
-- Used for intelligent data extraction
+#### Option B: OpenAI (fallback)
+- Set `OPENAI_API_KEY` in `.env.local`
 
 ### Installation
 
@@ -112,8 +112,14 @@ pnpm install
 
 3. Configure environment variables:
 ```bash
-# Create .env.local file
-FIRECRAWL_API_KEY=your_firecrawl_key
+# Create .env.local file (choose one option)
+# Azure OpenAI
+AZURE_OPENAI_API_KEY=your_azure_key
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_DEPLOYMENT=your-deployment
+AZURE_OPENAI_API_VERSION=2024-07-01-preview
+
+# Or OpenAI
 OPENAI_API_KEY=your_openai_key
 ```
 
@@ -218,7 +224,7 @@ If you prefer not to use environment variables, Fire Enrich supports entering AP
 
 ### Rate Limits
 
-- **Firecrawl**: Check your plan limits
+- **Azure OpenAI / OpenAI**: Check your plan limits
 - **OpenAI**: GPT-4 token limits apply
 - **Processing**: 1 row per second default
 - **Max Fields**: 10 per enrichment

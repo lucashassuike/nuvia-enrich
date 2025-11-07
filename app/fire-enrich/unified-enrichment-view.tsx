@@ -36,64 +36,19 @@ interface UnifiedEnrichmentViewProps {
   onStartEnrichment: (emailColumn: string, fields: EnrichmentField[]) => void;
 }
 
+// Presets por caso de uso
 const PRESET_FIELDS: EnrichmentField[] = [
-  {
-    name: "companyName",
-    displayName: "Company Name",
-    description: "The name of the company",
-    type: "string",
-    required: false,
-  },
-  {
-    name: "companyDescription",
-    displayName: "Company Description",
-    description: "A brief description of what the company does",
-    type: "string",
-    required: false,
-  },
-  {
-    name: "industry",
-    displayName: "Industry",
-    description: "The primary industry the company operates in",
-    type: "string",
-    required: false,
-  },
-  {
-    name: "employeeCount",
-    displayName: "Employee Count",
-    description: "The number of employees at the company",
-    type: "number",
-    required: false,
-  },
-  {
-    name: "yearFounded",
-    displayName: "Year Founded",
-    description: "The year the company was founded",
-    type: "number",
-    required: false,
-  },
-  {
-    name: "headquarters",
-    displayName: "Headquarters",
-    description: "The location of the company headquarters",
-    type: "string",
-    required: false,
-  },
-  {
-    name: "fundingRaised",
-    displayName: "Funding Raised",
-    description: "Total funding raised by the company",
-    type: "string",
-    required: false,
-  },
-  {
-    name: "fundingStage",
-    displayName: "Funding Stage",
-    description:
-      "The current funding stage (e.g., Pre-seed, Seed, Series A, Series B, Series C, Series D+, IPO)",
-    type: "string",
-    required: false,
-  },
+  // Identidade básica
+  { name: "companyName", displayName: "Empresa", description: "Nome da empresa", type: "string", required: false },
+  { name: "companyDescription", displayName: "Descrição", description: "O que a empresa faz (síntese)", type: "string", required: false },
+  { name: "industry", displayName: "Indústria", description: "Setor principal de atuação", type: "string", required: false },
+  // Sinais e hooks
+  { name: "prioritySignals", displayName: "Sinais Prioritários", description: "TOP sinais recentes e acionáveis", type: "array", required: false },
+  { name: "personalizationHooks", displayName: "Hooks de Personalização", description: "Frases prontas para cold email", type: "array", required: false },
+  { name: "signalStrength", displayName: "Força do Sinal", description: "Força geral dos sinais (high/medium/low)", type: "string", required: false },
+  // Dados complementares
+  { name: "signalsFound", displayName: "Qtd. Sinais", description: "Total de sinais encontrados", type: "number", required: false },
+  { name: "searchDate", displayName: "Data da Pesquisa", description: "Data da varredura", type: "string", required: false },
 ];
 
 export function UnifiedEnrichmentView({
@@ -104,10 +59,11 @@ export function UnifiedEnrichmentView({
   const [step, setStep] = useState<1 | 2>(1);
   const [emailColumn, setEmailColumn] = useState<string>("");
   const [selectedFields, setSelectedFields] = useState<EnrichmentField[]>([
-    // Default selected fields (3 fields)
+    // One-Click Enrichment default (Outbound Mode)
     PRESET_FIELDS.find((f) => f.name === "companyName")!,
-    PRESET_FIELDS.find((f) => f.name === "companyDescription")!,
-    PRESET_FIELDS.find((f) => f.name === "industry")!,
+    PRESET_FIELDS.find((f) => f.name === "prioritySignals")!,
+    PRESET_FIELDS.find((f) => f.name === "personalizationHooks")!,
+    PRESET_FIELDS.find((f) => f.name === "signalStrength")!,
   ]);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [showNaturalLanguage, setShowNaturalLanguage] = useState(false);
@@ -613,7 +569,7 @@ export function UnifiedEnrichmentView({
             {/* Preset fields */}
             <Card className="p-16 border-gray-200 bg-white rounded-8">
               <Label className="text-body-medium font-semibold text-gray-900 mb-12 block">
-                Quick add fields
+                Presets rápidos (One-Click)
               </Label>
               <div className="flex flex-wrap gap-6">
                 {PRESET_FIELDS.map((field) => {
@@ -650,7 +606,7 @@ export function UnifiedEnrichmentView({
             {/* Add additional fields section */}
             <Card className="p-16 border-gray-200 bg-white rounded-8">
               <Label className="mb-12 block text-body-medium font-semibold text-gray-900">
-                Add additional fields
+                Modo de uso (presets)
               </Label>
 
               <div className="space-y-8">
@@ -779,6 +735,55 @@ export function UnifiedEnrichmentView({
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Case presets */}
+                <div className="border rounded-6 border-gray-200 bg-gray-50 p-12">
+                  <p className="text-body-medium font-semibold text-gray-900 mb-8">Selecionar preset</p>
+                  <div className="flex flex-wrap gap-6">
+                    <button
+                      className="rounded-6 px-6 py-4 text-body-medium bg-gray-900 text-white hover:bg-gray-800"
+                      onClick={() => {
+                        // Inbound Mode: empresa, descrição, industria, sinais-chave, hooks
+                        const inbound = [
+                          "companyName",
+                          "companyDescription",
+                          "industry",
+                          "prioritySignals",
+                          "personalizationHooks",
+                        ];
+                        setSelectedFields(
+                          inbound
+                            .map((name) => PRESET_FIELDS.find((f) => f.name === name)!)
+                            .filter(Boolean)
+                        );
+                      }}
+                    >Inbound Mode</button>
+                    <button
+                      className="rounded-6 px-6 py-4 text-body-medium bg-gray-900 text-white hover:bg-gray-800"
+                      onClick={() => {
+                        // Outbound Mode: empresa, sinais prioritários, hooks, força sinal
+                        const outbound = [
+                          "companyName",
+                          "prioritySignals",
+                          "personalizationHooks",
+                          "signalStrength",
+                        ];
+                        setSelectedFields(
+                          outbound
+                            .map((name) => PRESET_FIELDS.find((f) => f.name === name)!)
+                            .filter(Boolean)
+                        );
+                      }}
+                    >Outbound Mode</button>
+                    <button
+                      className="rounded-6 px-6 py-4 text-body-medium bg-gray-900 text-white hover:bg-gray-800"
+                      onClick={() => {
+                        // Full Analysis: todos os campos principais
+                        setSelectedFields(PRESET_FIELDS);
+                      }}
+                    >Full Analysis</button>
+                  </div>
                 </div>
               </div>
             </Card>

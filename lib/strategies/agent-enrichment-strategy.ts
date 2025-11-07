@@ -4,6 +4,8 @@ import { shouldSkipEmail, loadSkipList, getSkipReason } from '../utils/skip-list
 
 export class AgentEnrichmentStrategy {
   private orchestrator: AgentOrchestrator;
+  // Cache por domínio para reutilizar enriquecimentos de mesma empresa
+  private domainCache: Map<string, Record<string, EnrichmentResult>> = new Map();
   
   constructor(
     openaiApiKey: string,
@@ -23,6 +25,10 @@ export class AgentEnrichmentStrategy {
     onAgentProgress?: (message: string, type: 'info' | 'success' | 'warning' | 'agent') => void
   ): Promise<RowEnrichmentResult> {
     const email = row[emailColumn];
+    // Preferir company_domain como chave primária; fallback para domínio do email
+    const explicitDomain = (row['company_domain'] || row['domain'] || '').toString().trim().toLowerCase();
+    const emailDomain = typeof email === 'string' && email.includes('@') ? email.split('@')[1].toLowerCase() : '';
+    const primaryDomain = (explicitDomain || emailDomain || '').replace(/^www\./, '');
     console.log(`[AgentEnrichmentStrategy] Starting enrichment for email: ${email}`);
     console.log(`[AgentEnrichmentStrategy] Requested fields: ${fields.map(f => f.name).join(', ')}`);
     
@@ -52,6 +58,27 @@ export class AgentEnrichmentStrategy {
     }
     
     try {
+      // Cache: se já temos enriquecimento para o domínio, reutiliza
+      const domain = primaryDomain;
+      if (domain && this.domainCache.has(domain)) {
+        const cached = this.domainCache.get(domain)!;
+        const filteredEnrichments: Record<string, EnrichmentResult> = {};
+        for (const [key, enrichment] of Object.entries(cached)) {
+          if (enrichment.value !== null) {
+            filteredEnrichments[key] = enrichment as EnrichmentResult;
+          }
+        }
+        const enrichedCount = Object.keys(filteredEnrichments).length;
+        console.log(`[AgentEnrichmentStrategy] Cache hit for domain ${domain}. Returning ${enrichedCount} fields.`);
+        if (onAgentProgress) onAgentProgress(`Cache hit (${domain}): ${enrichedCount} campos`, 'success');
+        return {
+          rowIndex: 0,
+          originalData: row,
+          enrichments: filteredEnrichments,
+          status: 'completed',
+        };
+      }
+
       console.log(`[AgentEnrichmentStrategy] Delegating to AgentOrchestrator`);
       // Use the agent orchestrator for enrichment
       const result = await this.orchestrator.enrichRow(
@@ -72,7 +99,13 @@ export class AgentEnrichmentStrategy {
       
       const enrichedCount = Object.keys(filteredEnrichments).length;
       console.log(`[AgentEnrichmentStrategy] Orchestrator returned ${enrichedCount} enriched fields`);
-      
+
+      // Armazena no cache por domínio (se disponível)
+      if (domain) {
+        this.domainCache.set(domain, filteredEnrichments);
+        console.log(`[AgentEnrichmentStrategy] Cached enrichment for domain ${domain}`);
+      }
+
       return {
         ...result,
         enrichments: filteredEnrichments

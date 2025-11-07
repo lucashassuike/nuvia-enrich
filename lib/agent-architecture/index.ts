@@ -5,8 +5,17 @@ export * from './core/types';
 
 // Factory function for easy initialization
 export function createAgentOrchestrator(
-  firecrawlApiKey: string,
-  openaiApiKey: string
+  exploriumApiKey: string,
+  openaiApiKey: string,
+  azureEndpoint: string,
+  azureDeployment: string,
+  azureApiVersion: string
 ) {
-  return new AgentOrchestrator(firecrawlApiKey, openaiApiKey);
+  return new AgentOrchestrator(
+    exploriumApiKey,
+    openaiApiKey,
+    azureEndpoint,
+    azureDeployment,
+    azureApiVersion
+  );
 }

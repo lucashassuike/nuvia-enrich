@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { AzureOpenAI } from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 import { FieldGenerationResponse } from '@/lib/types/field-generation';
@@ -15,19 +15,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+    const apiKey = process.env.AZURE_OPENAI_API_KEY;
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4.1';
+    const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2024-12-01-preview';
+
+    if (!endpoint || !apiKey || !deployment || !apiVersion) {
       return NextResponse.json(
-        { error: 'OpenAI API key not configured' },
+        { error: 'Azure OpenAI environment not configured' },
         { status: 500 }
       );
     }
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+    const openai = new AzureOpenAI({
+      endpoint,
+      apiKey,
+      deployment,
+      apiVersion,
     });
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4.1',
+      model: deployment,
       messages: [
         {
           role: 'system',
@@ -62,12 +70,17 @@ export async function POST(request: NextRequest) {
     });
 
     const message = completion.choices[0].message;
-    
-    if (!message.content) {
+
+    // With structured outputs, some SDKs populate parsed JSON directly; fallback to content parsing
+    let parsed: z.infer<typeof FieldGenerationResponse>;
+    const content = message.content;
+    if (content && typeof content === 'string') {
+      parsed = JSON.parse(content) as z.infer<typeof FieldGenerationResponse>;
+    } else {
+      // Try to extract from the helper if available (not all SDKs expose it)
+      // As a safe fallback, return an error
       throw new Error('No response content');
     }
-    
-    const parsed = JSON.parse(message.content) as z.infer<typeof FieldGenerationResponse>;
 
     return NextResponse.json({
       success: true,
