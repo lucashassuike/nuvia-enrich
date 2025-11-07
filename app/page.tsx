@@ -31,7 +31,7 @@ import ButtonUI from "@/components/shared/button/button";
 
 // Ui Imports
 import { toast } from "sonner";
-import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import Button from "@/components/shared/button/button";
 import {
   Dialog,
@@ -54,13 +54,9 @@ export default function HomePage() {
   const [selectedFields, setSelectedFields] = useState<EnrichmentField[]>([]);
   const [isCheckingEnv, setIsCheckingEnv] = useState(true);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [firecrawlApiKey, setFirecrawlApiKey] = useState<string>("");
   const [openaiApiKey, setOpenaiApiKey] = useState<string>("");
   const [isValidatingApiKey, setIsValidatingApiKey] = useState(false);
-  const [missingKeys, setMissingKeys] = useState<{
-    firecrawl: boolean;
-    openai: boolean;
-  }>({ firecrawl: false, openai: false });
+  const [missingKeys, setMissingKeys] = useState<{ openai: boolean }>({ openai: false });
   const [pendingCSVData, setPendingCSVData] = useState<{
     rows: CSVRow[];
     columns: string[];
@@ -75,23 +71,22 @@ export default function HomePage() {
           throw new Error("Failed to check environment");
         }
         const data = await response.json();
-        const hasFirecrawl = data.environmentStatus.FIRECRAWL_API_KEY;
-        const hasOpenAI = data.environmentStatus.OPENAI_API_KEY;
+        const env = data.environmentStatus;
 
-        if (!hasFirecrawl) {
-          // Check localStorage for saved API key
-          const savedKey = localStorage.getItem("firecrawl_api_key");
-          if (savedKey) {
-            setFirecrawlApiKey(savedKey);
-          }
-        }
+        const hasAzureOpenAI =
+          env.AZURE_OPENAI_API_KEY &&
+          env.AZURE_OPENAI_ENDPOINT &&
+          env.AZURE_OPENAI_DEPLOYMENT &&
+          env.AZURE_OPENAI_API_VERSION;
 
-        if (!hasOpenAI) {
-          // Check localStorage for saved API key
-          const savedKey = localStorage.getItem("openai_api_key");
-          if (savedKey) {
-            setOpenaiApiKey(savedKey);
-          }
+        const hasOpenAI = env.OPENAI_API_KEY || hasAzureOpenAI;
+        const savedOpenAIKey = localStorage.getItem("openai_api_key");
+
+        // On initial load, only prompt for missing keys.
+        // Do not attempt to set CSV data before upload.
+        if (!hasOpenAI && !savedOpenAIKey) {
+          setMissingKeys({ openai: true });
+          setShowApiKeyModal(true);
         }
       } catch (error) {
         console.error("Error checking environment:", error);
@@ -107,21 +102,20 @@ export default function HomePage() {
     // Check if we have Firecrawl API key
     const response = await fetch("/api/check-env");
     const data = await response.json();
-    const hasFirecrawl = data.environmentStatus.FIRECRAWL_API_KEY;
-    const hasOpenAI = data.environmentStatus.OPENAI_API_KEY;
-    const savedFirecrawlKey = localStorage.getItem("firecrawl_api_key");
+    const env = data.environmentStatus;
+
+    const hasAzureOpenAI =
+      env.AZURE_OPENAI_API_KEY &&
+      env.AZURE_OPENAI_ENDPOINT &&
+      env.AZURE_OPENAI_DEPLOYMENT &&
+      env.AZURE_OPENAI_API_VERSION;
+
+    const hasOpenAI = env.OPENAI_API_KEY || hasAzureOpenAI;
     const savedOpenAIKey = localStorage.getItem("openai_api_key");
 
-    if (
-      (!hasFirecrawl && !savedFirecrawlKey) ||
-      (!hasOpenAI && !savedOpenAIKey)
-    ) {
-      // Save the CSV data temporarily and show API key modal
+    if (!hasOpenAI && !savedOpenAIKey) {
       setPendingCSVData({ rows, columns });
-      setMissingKeys({
-        firecrawl: !hasFirecrawl && !savedFirecrawlKey,
-        openai: !hasOpenAI && !savedOpenAIKey,
-      });
+      setMissingKeys({ openai: true });
       setShowApiKeyModal(true);
     } else {
       setCsvData({ rows, columns });
@@ -150,26 +144,16 @@ export default function HomePage() {
     setSelectedFields([]);
   };
 
-  const openFirecrawlWebsite = () => {
-    window.open("https://www.firecrawl.dev", "_blank");
-  };
+  // Remove Firecrawl CTA
 
   const handleApiKeySubmit = async () => {
     // Check environment again to see what's missing
     const response = await fetch("/api/check-env");
     const data = await response.json();
-    const hasEnvFirecrawl = data.environmentStatus.FIRECRAWL_API_KEY;
     const hasEnvOpenAI = data.environmentStatus.OPENAI_API_KEY;
-    const hasSavedFirecrawl = localStorage.getItem("firecrawl_api_key");
     const hasSavedOpenAI = localStorage.getItem("openai_api_key");
 
-    const needsFirecrawl = !hasEnvFirecrawl && !hasSavedFirecrawl;
     const needsOpenAI = !hasEnvOpenAI && !hasSavedOpenAI;
-
-    if (needsFirecrawl && !firecrawlApiKey.trim()) {
-      toast.error("Please enter a valid Firecrawl API key");
-      return;
-    }
 
     if (needsOpenAI && !openaiApiKey.trim()) {
       toast.error("Please enter a valid OpenAI API key");
@@ -179,26 +163,7 @@ export default function HomePage() {
     setIsValidatingApiKey(true);
 
     try {
-      // Test the Firecrawl API key if provided
-      if (firecrawlApiKey) {
-        const response = await fetch("/api/scrape", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Firecrawl-API-Key": firecrawlApiKey,
-          },
-          body: JSON.stringify({ url: "https://example.com" }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Invalid Firecrawl API key");
-        }
-
-        // Save the API key to localStorage
-        localStorage.setItem("firecrawl_api_key", firecrawlApiKey);
-      }
-
-      // Save OpenAI API key if provided
+      // Save OpenAI key if provided
       if (openaiApiKey) {
         localStorage.setItem("openai_api_key", openaiApiKey);
       }
@@ -206,7 +171,6 @@ export default function HomePage() {
       toast.success("API keys saved successfully!");
       setShowApiKeyModal(false);
 
-      // Process the pending CSV data
       if (pendingCSVData) {
         setCsvData(pendingCSVData);
         setStep("setup");
@@ -232,16 +196,7 @@ export default function HomePage() {
                 <HeaderBrandKit />
               </div>
               <div className="flex gap-8">
-                <a
-                  className="contents"
-                  href="https://github.com/firecrawl/fire-enrich"
-                  target="_blank"
-                >
-                  <ButtonUI variant="tertiary">
-                    <GithubIcon />
-                    Use this Template
-                  </ButtonUI>
-                </a>
+                {/* Removed Firecrawl template link */}
               </div>
             </div>
           ) : (
@@ -251,16 +206,7 @@ export default function HomePage() {
                   <HeaderBrandKit />
                 </div>
                 <div className="flex gap-8">
-                  <a
-                    className="contents"
-                    href="https://github.com/firecrawl/fire-enrich"
-                    target="_blank"
-                  >
-                    <ButtonUI variant="tertiary">
-                      <GithubIcon />
-                      Use this Template
-                    </ButtonUI>
-                  </a>
+                  {/* Removed Firecrawl template link */}
                 </div>
               </div>
             </HeaderWrapper>
@@ -297,9 +243,9 @@ export default function HomePage() {
                   </p>
                   <Link
                     className="bg-black-alpha-4 hover:bg-black-alpha-6 rounded-6 px-8 lg:px-6 text-label-large h-30 lg:h-24 block mt-8 mx-auto w-max gap-4 transition-all"
-                    href="https://firecrawl.dev"
+                    href="https://azure.microsoft.com/products/ai-services/openai-service/"
                   >
-                    Powered by Firecrawl
+                    Powered by Azure OpenAI
                   </Link>
                 </motion.div>
               ) : (
@@ -424,40 +370,11 @@ export default function HomePage() {
           <DialogHeader>
             <DialogTitle>API Keys Required</DialogTitle>
             <DialogDescription>
-              This tool requires API keys for Firecrawl and OpenAI to enrich
-              your CSV data.
+              This tool uses Azure OpenAI. If `AZURE_OPENAI_*` envs are not set, you can provide an OpenAI API key to proceed.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
-            {missingKeys.firecrawl && (
-              <>
-                <Button
-                  onClick={openFirecrawlWebsite}
-                  variant="secondary"
-                  size="default"
-                  className="flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <ExternalLink style={{ width: '20px', height: '20px', minWidth: '20px', minHeight: '20px' }} />
-                  Get Firecrawl API Key
-                </Button>
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="firecrawl-key"
-                    className="text-body-small font-medium"
-                  >
-                    Firecrawl API Key
-                  </label>
-                  <Input
-                    id="firecrawl-key"
-                    type="password"
-                    placeholder="fc-..."
-                    value={firecrawlApiKey}
-                    onChange={(e) => setFirecrawlApiKey(e.target.value)}
-                    disabled={isValidatingApiKey}
-                  />
-                </div>
-              </>
-            )}
+            {/* Firecrawl input removed */}
 
             {missingKeys.openai && (
               <>
@@ -472,7 +389,7 @@ export default function HomePage() {
                   size="default"
                   className="flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <ExternalLink style={{ width: '20px', height: '20px', minWidth: '20px', minHeight: '20px' }} />
+                  {/* icon removed */}
                   Get OpenAI API Key
                 </Button>
                 <div className="flex flex-col gap-2">
@@ -506,7 +423,7 @@ export default function HomePage() {
             </Button>
             <Button
               onClick={handleApiKeySubmit}
-              disabled={isValidatingApiKey || !firecrawlApiKey.trim()}
+              disabled={isValidatingApiKey || (missingKeys.openai && !openaiApiKey.trim())}
               variant="primary"
             >
               {isValidatingApiKey ? (

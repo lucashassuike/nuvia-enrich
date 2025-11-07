@@ -1,52 +1,42 @@
-import { z } from 'zod';
-import { OpenAIService } from '../../services/openai';
-
-const Signal = z.object({
-  signal_id: z.string(),
-  signal_name: z.string(),
-  category: z.enum(['organizacional', 'pessoal', 'mercado', 'performance']),
-  weight: z.string(),
-  date: z.string(),
-  title: z.string(),
-  description: z.string(),
-  source_url: z.string().url(),
-  confidence: z.enum(['high', 'medium', 'low']),
-  recommended_action: z.string(),
-  copy_angle: z.string(),
-});
-
-const CompanyAnalysis = z.object({
-  company_name: z.string(),
-  search_date: z.string(),
-  data_freshness: z.string(),
-  overall_signal_strength: z.enum(['high', 'medium', 'low']),
-  priority_signals: z.array(Signal),
-  total_signals_found: z.number(),
-  signals_by_category: z.object({
-    organizacional: z.number(),
-    mercado: z.number(),
-    performance: z.number(),
-  }),
-  key_insights: z.string(),
-  personalization_hooks: z.array(z.string()),
-});
-
-const WebResearchInput = z.object({
-  company_name: z.string(),
-  company_domain: z.string(),
-  company_industry: z.string(),
-  company_country: z.string(),
-  company_competitors: z.array(z.string()).optional(),
-});
-
-export function createWebResearchTool(openai: OpenAIService) {
-  return {
-    name: 'web_research',
-    description: 'Perform web research to find signals for a company',
-    parameters: WebResearchInput,
-    outputType: CompanyAnalysis,
-    execute: async (input: z.infer<typeof WebResearchInput>) => {
-      const systemPrompt = `
+EMPRESA ALVO: {{company_name}}
+WEBSITE/DOMÍNIO: {{company_domain}}
+SETOR/INDÚSTRIA: Fintech
+PAÍS: Brasil
+CONTEXTO ADICIONAL (se disponível):
+- Concorrentes principais: {{competitors}}
+- Segmento específico: Fintech
+- Região de atuação: Brasil
+MISSÃO: Realizar varredura completa de sinais de contexto nos últimos 90 dias (priorize 30 dias) para identificar gatilhos de personalização em abordagem de cold outbound.
+FOCO DA PESQUISA (em ordem de prioridade):
+1. SINAIS ORGANIZACIONAIS (HIGH IMPACT):
+✓ Rodadas de investimento, funding, Series A/B/C, IPO
+✓ Abertura de vagas (Tech, Sales, Marketing, Growth, RevOps, C-level)
+✓ Crescimento rápido de headcount (>20% em 6 meses)
+✓ Contratações estratégicas (novos VP, Directors, Heads)
+✓ Lançamentos de produtos, features ou serviços
+✓ Expansão geográfica (novos escritórios, mercados, países)
+✓ Mudança de sede ou novo office
+2. SINAIS DE MERCADO (CONTEXTUAL):
+✓ Mudanças regulatórias afetando o setor {{industry}}
+✓ Notícias sobre concorrentes diretos (funding, launches, pivots)
+✓ Fusões, aquisições ou parcerias estratégicas
+✓ Participação em eventos (palestrante, sponsor, expositor)
+✓ Entrada de novos players competindo em {{market_segment}}
+✓ Macro trends impactando o setor
+3. SINAIS DE PERFORMANCE (DIGITAL FOOTPRINT):
+✓ Publicação de cases de sucesso, depoimentos, testimonials
+✓ Press releases, blog posts, whitepapers recentes
+✓ Alterações no website (redesign, novos produtos, branding)
+✓ Padrões em reviews (G2, Glassdoor, Reclame Aqui) - apenas se 3+ menções similares
+INSTRUÇÕES ESPECÍFICAS:
+- Retorne TOP 5-7 sinais mais recentes e acionáveis
+- Ordene por weight descendente (5 > 4 > 3 > 2)
+- Para cada sinal, sugira copy_angle específico
+- Inclua 2-3 personalization_hooks prontos para cold email
+- Se não encontrar sinais fortes, seja honesto (overall_signal_strength: low)
+OUTPUT: JSON estruturado conforme schema do system prompt.
+Data de referência para cálculo de recência: 30/10/2025
+---
 Você é um analista sênior de business intelligence B2B especializado em identificar sinais de contexto para prospecção outbound estratégica.
 OBJETIVO: Realizar varredura completa de sinais públicos sobre a empresa-alvo, priorizando informações acionáveis para personalização de abordagem comercial.
 FORMATO DE SAÍDA OBRIGATÓRIO (JSON estruturado):
@@ -148,49 +138,5 @@ PROIBIÇÕES ABSOLUTAS:
 ❌ NÃO misture JSON com texto explicativo fora da estrutura
 ❌ NÃO retorne sinais sem source_url
 ❌ NÃO exceda 7 sinais no output (qualidade > quantidade)
-      `;
-      const userPrompt = `
-EMPRESA ALVO: ${input.company_name}
-WEBSITE/DOMÍNIO: ${input.company_domain}
-SETOR/INDÚSTRIA: ${input.company_industry}
-PAÍS: ${input.company_country}
-CONTEXTO ADICIONAL (se disponível):
-- Concorrentes principais: ${input.company_competitors?.join(', ')}
-- Segmento específico: ${input.company_industry}
-- Região de atuação: ${input.company_country}
-MISSÃO: Realizar varredura completa de sinais de contexto nos últimos 90 dias (priorize 30 dias) para identificar gatilhos de personalização em abordagem de cold outbound.
-FOCO DA PESQUISA (em ordem de prioridade):
-1. SINAIS ORGANIZACIONAIS (HIGH IMPACT):
-✓ Rodadas de investimento, funding, Series A/B/C, IPO
-✓ Abertura de vagas (Tech, Sales, Marketing, Growth, RevOps, C-level)
-✓ Crescimento rápido de headcount (>20% em 6 meses)
-✓ Contratações estratégicas (novos VP, Directors, Heads)
-✓ Lançamentos de produtos, features ou serviços
-✓ Expansão geográfica (novos escritórios, mercados, países)
-✓ Mudança de sede ou novo office
-2. SINAIS DE MERCADO (CONTEXTUAL):
-✓ Mudanças regulatórias afetando o setor ${input.company_industry}
-✓ Notícias sobre concorrentes diretos (funding, launches, pivots)
-✓ Fusões, aquisições ou parcerias estratégicas
-✓ Participação em eventos (palestrante, sponsor, expositor)
-✓ Entrada de novos players competindo em ${input.company_industry}
-✓ Macro trends impactando o setor
-3. SINAIS DE PERFORMANCE (DIGITAL FOOTPRINT):
-✓ Publicação de cases de sucesso, depoimentos, testimonials
-✓ Press releases, blog posts, whitepapers recentes
-✓ Alterações no website (redesign, novos produtos, branding)
-✓ Padrões em reviews (G2, Glassdoor, Reclame Aqui) - apenas se 3+ menções similares
-INSTRUÇÕES ESPECÍFICAS:
-- Retorne TOP 5-7 sinais mais recentes e acionáveis
-- Ordene por weight descendente (5 > 4 > 3 > 2)
-- Para cada sinal, sugira copy_angle específico
-- Inclua 2-3 personalization_hooks prontos para cold email
-- Se não encontrar sinais fortes, seja honesto (overall_signal_strength: low)
-OUTPUT: JSON estruturado conforme schema do system prompt.
-Data de referência para cálculo de recência: ${new Date().toISOString().split('T')[0]}
-      `;
-      const json = await openai.chatCompletionJSON(systemPrompt, userPrompt);
-      return json;
-  },
-  };
-}
+
+

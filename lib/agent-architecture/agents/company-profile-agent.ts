@@ -1,7 +1,6 @@
-import { Agent, Tool } from '@openai/agents';
 import { z } from 'zod';
-import { createWebsiteScraperTool } from '../tools/website-scraper-tool';
-import { createSmartSearchTool } from '../tools/smart-search-tool';
+import { createAzureOpenAISearchTool } from '../tools/azure-openai-search-tool';
+import { OpenAIService } from '../../services/openai';
 
 const ProfileResult = z.object({
   industry: z.string().describe('Primary industry or sector'),
@@ -12,42 +11,38 @@ const ProfileResult = z.object({
   sources: z.record(z.string(), z.array(z.string())).describe('Source URLs for each field'),
 });
 
-export function createCompanyProfileAgent(firecrawlApiKey: string) {
+export function createCompanyProfileAgent(openai: OpenAIService) {
   console.log('[AGENT-PROFILE] Creating Company Profile Agent');
-  
-  return new Agent({
-    name: 'Company Profile Agent',
-    
-    instructions: `You are the Company Profile Agent - specialist in company background and characteristics.
-    
-    You receive company name and website from the Discovery Agent.
-    
-    YOUR MISSION:
-    1. Industry/Sector - Use standard categories (SaaS, Fintech, Healthcare, etc.)
-    2. Headquarters - City, State/Country format
-    3. Year Founded - Must be reasonable (1800-current year)
-    4. Company Type - Public, Private, Subsidiary, or Non-profit
-    
-    SEARCH STRATEGIES:
-    1. First check the company website (About, Company, History pages)
-    2. Search for "{companyName} headquarters founded year"
-    3. Look for press releases or official announcements
-    4. Search business news for company information
-    
-    VALIDATION RULES:
-    - Industry: Use properly capitalized, recognized categories (e.g., "Technology", "Healthcare", "Finance", "E-commerce")
-    - Location: Must be a real place with proper capitalization (e.g., "San Francisco, CA", "New York, NY")
-    - Year: Must be between 1800 and current year
-    - Company names: Use official capitalization (e.g., "OneTrust" not "onetrust", "Sideguide" not "SideGuide")
-    - If uncertain, mark confidence as lower
-    
-    IMPORTANT: Build on the Discovery Agent's findings. Don't re-discover basic info.`,
-    
-    tools: [
-      createWebsiteScraperTool(firecrawlApiKey) as unknown as Tool<unknown>,
-      createSmartSearchTool(firecrawlApiKey, 'business') as unknown as Tool<unknown>,
-    ],
-    
-    outputType: ProfileResult,
-  });
+
+  // Lightweight agent that uses our Azure search tool + OpenAI JSON extraction
+  const search = createAzureOpenAISearchTool(openai, 'business');
+
+  return {
+    async run(_prompt: string, options?: { context?: Record<string, unknown> }) {
+      const ctx = options?.context || {};
+      const companyName = (ctx['companyName'] as string) || '';
+      const domain = (ctx['companyDomain'] as string) || '';
+
+      const queries = [
+        `${companyName} industry headquarters founded year`,
+        `${companyName} company type public private subsidiary`,
+        `${domain} about company`,
+      ].filter(Boolean);
+
+      const results = await (search as any).execute({
+        queries,
+        targetField: 'company profile',
+        context: { companyName, companyDomain: domain }
+      });
+
+      const sources = results.map((r: any) => r.url);
+      const contentBlob = results.map((r: any) => `Source: ${r.url}\nTitle: ${r.title}\nSummary:\n${r.markdown || r.description || ''}`).join('\n\n');
+
+      const systemPrompt = `Extract company profile with keys: industry, headquarters, yearFounded, companyType (Public|Private|Subsidiary|Non-profit), confidence (record), sources (array of URLs). Return JSON conforming to the schema.`;
+      const userPrompt = `COMPANY: ${companyName || domain}\n\nSUMMARIES:\n${contentBlob}`;
+      const finalOutput = await openai.chatCompletionJSON(systemPrompt, userPrompt);
+      if (finalOutput && !finalOutput.sources) finalOutput.sources = sources;
+      return { finalOutput };
+    }
+  };
 }

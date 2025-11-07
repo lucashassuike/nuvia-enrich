@@ -1,28 +1,24 @@
-import { tool } from '@openai/agents';
 import { z } from 'zod';
 import { EmailContext } from '../core/types';
 
 export function createEmailParserTool() {
-  return tool({
+  // Simple functional replacement for the previous agent tool
+  return {
     name: 'parse_email',
     description: 'Extract context from an email address',
     parameters: z.object({
       email: z.string().email().describe('Email address to parse'),
     }),
-    async execute({ email }) {
+    async execute({ email }: { email: string }) {
       const [localPart, domain] = email.split('@');
-      
-      // Extract personal name from email
+
       const personalName = extractPersonalName(localPart);
-      
-      // Determine if it's a personal email
       const personalDomains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'aol.com'];
       const isPersonalEmail = personalDomains.includes(domain.toLowerCase());
-      
-      // Extract company domain and guess company name
+
       const companyDomain = isPersonalEmail ? undefined : domain;
       const companyNameGuess = companyDomain ? guessCompanyName(companyDomain) : undefined;
-      
+
       const context: EmailContext = {
         email,
         domain,
@@ -31,10 +27,10 @@ export function createEmailParserTool() {
         companyNameGuess,
         isPersonalEmail,
       };
-      
+
       return context;
     },
-  });
+  };
 }
 
 function extractPersonalName(localPart: string): string {

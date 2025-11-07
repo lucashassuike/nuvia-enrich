@@ -74,8 +74,10 @@ export function EnrichmentTable({
   const [rowDataArrivalTime, setRowDataArrivalTime] = useState<
     Map<number, number>
   >(new Map());
+  const [rowStartTime, setRowStartTime] = useState<Map<number, number>>(new Map());
   const [cellsShown, setCellsShown] = useState<Set<string>>(new Set());
   const animationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [showMetrics, setShowMetrics] = useState<boolean>(true);
 
   // Cleanup animation timer on unmount
   useEffect(() => {
@@ -115,22 +117,14 @@ export function EnrichmentTable({
     setStatus("processing");
 
     try {
-      // Get API keys from localStorage if not in environment
-      const firecrawlApiKey = localStorage.getItem("firecrawl_api_key");
-      const openaiApiKey = localStorage.getItem("openai_api_key");
+      // Client no longer sends API keys; server uses Azure env
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         ...(useAgents && { "x-use-agents": "true" }),
       };
 
-      // Add API keys to headers if available
-      if (firecrawlApiKey) {
-        headers["X-Firecrawl-API-Key"] = firecrawlApiKey;
-      }
-      if (openaiApiKey) {
-        headers["X-OpenAI-API-Key"] = openaiApiKey;
-      }
+      // No client-provided API keys; rely on server configuration
 
       const response = await fetch("/api/enrich", {
         method: "POST",
@@ -200,6 +194,12 @@ export function EnrichmentTable({
                         status: 'processing',
                       });
                     }
+                    return newMap;
+                  });
+                  // Mark row start time
+                  setRowStartTime((prevTime) => {
+                    const newMap = new Map(prevTime);
+                    newMap.set(data.rowIndex, Date.now());
                     return newMap;
                   });
                   break;
@@ -381,6 +381,213 @@ export function EnrichmentTable({
     URL.revokeObjectURL(url);
   };
 
+  // --- Metrics Computation ---
+  const processedRows = Array.from(results.entries())
+    .filter(([, r]) => r.status === 'completed' || r.status === 'processing')
+    .map(([index, r]) => ({ index, result: r }));
+
+  const classifySource = (enrichment?: { source?: string; sourceContext?: { url: string }[] }) => {
+    if (!enrichment) return 'derived';
+    const src = (enrichment.source || '').toLowerCase();
+    if (src.includes('explorium')) return 'explorium';
+    if (enrichment.sourceContext && enrichment.sourceContext.length > 0) return 'web';
+    return 'derived';
+  };
+
+  const sourceCounts = { explorium: 0, web: 0, derived: 0 };
+  const totalFieldsWithValues = processedRows.reduce((acc, { result }) => {
+    let count = 0;
+    Object.values(result.enrichments || {}).forEach((enr) => {
+      const hasValue = enr && enr.value !== null && enr.value !== undefined && !(Array.isArray(enr.value) && enr.value.length === 0);
+      if (hasValue) {
+        count += 1;
+        const cat = classifySource(enr);
+        sourceCounts[cat as keyof typeof sourceCounts] += 1;
+      }
+    });
+    return acc + count;
+  }, 0);
+
+  // Cache hits inferred from agent messages
+  const cacheHits = agentMessages.filter(m => (m.message || '').toLowerCase().includes('cache hit')).length;
+
+  // Average time per row (ms)
+  const avgTimeMs = (() => {
+    const deltas: number[] = [];
+    processedRows.forEach(({ index }) => {
+      const start = rowStartTime.get(index);
+      const end = rowDataArrivalTime.get(index);
+      if (start && end && end > start) deltas.push(end - start);
+    });
+    if (deltas.length === 0) return 0;
+    return Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length);
+  })();
+
+  // Domain aggregation
+  const getDomainForRow = (row: CSVRow): string => {
+    const explicit = (row['company_domain'] || row['domain'] || '').toString().trim().toLowerCase();
+    const emailVal = emailColumn ? row[emailColumn] : Object.values(row)[0];
+    const emailDom = typeof emailVal === 'string' && emailVal.includes('@') ? emailVal.split('@')[1].toLowerCase() : '';
+    const primary = (explicit || emailDom || '').replace(/^www\./, '');
+    return primary;
+  };
+
+  const domainStats = new Map<string, { rows: number; fields: number; signalsFound: number; strengthScore: number; hooks: number }>();
+  processedRows.forEach(({ index, result }) => {
+    const domain = getDomainForRow(rows[index]);
+    if (!domain) return;
+    const prev = domainStats.get(domain) || { rows: 0, fields: 0, signalsFound: 0, strengthScore: 0, hooks: 0 };
+    let rowFields = 0;
+    let rowSignals = 0;
+    let rowStrength = 0;
+    let rowHooks = 0;
+    Object.entries(result.enrichments || {}).forEach(([key, enr]) => {
+      const hasValue = enr && enr.value !== null && enr.value !== undefined && !(Array.isArray(enr.value) && enr.value.length === 0);
+      if (hasValue) {
+        rowFields += 1;
+      }
+      if (key.toLowerCase().includes('signalsfound') && typeof enr.value === 'number') {
+        rowSignals += Number(enr.value) || 0;
+      }
+      if (key.toLowerCase().includes('signalstrength') && typeof enr.value === 'string') {
+        const val = (enr.value as string).toLowerCase();
+        rowStrength += val === 'high' ? 3 : val === 'medium' ? 2 : val === 'low' ? 1 : 0;
+      }
+      if (key.toLowerCase().includes('personalizationhooks') && Array.isArray(enr.value)) {
+        rowHooks += (enr.value as string[]).length > 0 ? 1 : 0;
+      }
+    });
+    domainStats.set(domain, {
+      rows: prev.rows + 1,
+      fields: prev.fields + rowFields,
+      signalsFound: prev.signalsFound + rowSignals,
+      strengthScore: prev.strengthScore + rowStrength,
+      hooks: prev.hooks + rowHooks,
+    });
+  });
+
+  const topDomains = Array.from(domainStats.entries())
+    .sort((a, b) => b[1].fields - a[1].fields)
+    .slice(0, 10);
+
+  const readinessScore = (stats: { rows: number; signalsFound: number; strengthScore: number; hooks: number }) => {
+    if (stats.rows === 0) return 0;
+    const avgSignals = stats.signalsFound / stats.rows;
+    const avgStrength = stats.strengthScore / stats.rows; // 0–3
+    const hooksRate = stats.hooks / stats.rows; // 0–1
+    // Weighted: signals 40%, strength 40%, hooks 20%
+    const score = (Math.min(avgSignals, 5) / 5) * 40 + (Math.min(avgStrength, 3) / 3) * 40 + hooksRate * 20;
+    return Math.round(score);
+  };
+
+  const sourcePercent = (count: number) => {
+    if (totalFieldsWithValues === 0) return 0;
+    return Math.round((count / totalFieldsWithValues) * 100);
+  };
+
+  // --- Metrics Dashboard UI ---
+  const MetricsDashboard = () => (
+    <Card className="p-16 mb-16 border-gray-200 bg-white rounded-8">
+      <div className="flex items-center justify-between">
+        <Label className="text-body-medium font-semibold text-gray-900">Dashboard de Métricas</Label>
+        <button className="text-body-small text-gray-700" onClick={() => setShowMetrics(!showMetrics)}>
+          {showMetrics ? 'Ocultar' : 'Mostrar'}
+        </button>
+      </div>
+      {showMetrics && (
+        <div className="mt-12 space-y-12">
+          {/* Stats cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+            <Card className="p-12 bg-gray-50 border-gray-200">
+              <p className="text-gray-500 text-body-small">Linhas processadas</p>
+              <p className="text-gray-900 text-body-large font-semibold">{processedRows.length} / {rows.length}</p>
+            </Card>
+            <Card className="p-12 bg-gray-50 border-gray-200">
+              <p className="text-gray-500 text-body-small">Cache hits</p>
+              <p className="text-gray-900 text-body-large font-semibold">{cacheHits}</p>
+            </Card>
+            <Card className="p-12 bg-gray-50 border-gray-200">
+              <p className="text-gray-500 text-body-small">Tempo médio por linha</p>
+              <p className="text-gray-900 text-body-large font-semibold">{avgTimeMs} ms</p>
+            </Card>
+            <Card className="p-12 bg-gray-50 border-gray-200">
+              <p className="text-gray-500 text-body-small">Campos com valor</p>
+              <p className="text-gray-900 text-body-large font-semibold">{totalFieldsWithValues}</p>
+            </Card>
+          </div>
+
+          {/* Source breakdown */}
+          <div className="border rounded-6 border-gray-200 p-12">
+            <p className="text-body-medium font-semibold text-gray-900 mb-8">Fontes dos dados</p>
+            <div className="flex gap-12">
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-gray-700">Explorium</span>
+                  <span className="text-gray-900 font-semibold">{sourceCounts.explorium} ({sourcePercent(sourceCounts.explorium)}%)</span>
+                </div>
+                <div className="h-2 w-full bg-gray-100 rounded">
+                  <div className="h-2 bg-green-600 rounded" style={{ width: `${sourcePercent(sourceCounts.explorium)}%` }} />
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-gray-700">Web Research</span>
+                  <span className="text-gray-900 font-semibold">{sourceCounts.web} ({sourcePercent(sourceCounts.web)}%)</span>
+                </div>
+                <div className="h-2 w-full bg-gray-100 rounded">
+                  <div className="h-2 bg-blue-600 rounded" style={{ width: `${sourcePercent(sourceCounts.web)}%` }} />
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-gray-700">Derivados/LLM</span>
+                  <span className="text-gray-900 font-semibold">{sourceCounts.derived} ({sourcePercent(sourceCounts.derived)}%)</span>
+                </div>
+                <div className="h-2 w-full bg-gray-100 rounded">
+                  <div className="h-2 bg-purple-600 rounded" style={{ width: `${sourcePercent(sourceCounts.derived)}%` }} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Top domains */}
+          <div className="border rounded-6 border-gray-200 p-12">
+            <p className="text-body-medium font-semibold text-gray-900 mb-8">Top domains enriquecidos</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-gray-600">
+                    <th className="py-2 pr-4">Domain</th>
+                    <th className="py-2 pr-4">Linhas</th>
+                    <th className="py-2 pr-4">Campos</th>
+                    <th className="py-2 pr-4">Sinais</th>
+                    <th className="py-2 pr-4">Score prontidão</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topDomains.map(([dom, stats]) => (
+                    <tr key={dom} className="border-t">
+                      <td className="py-2 pr-4 text-gray-900">{dom || '-'}</td>
+                      <td className="py-2 pr-4">{stats.rows}</td>
+                      <td className="py-2 pr-4">{stats.fields}</td>
+                      <td className="py-2 pr-4">{stats.signalsFound}</td>
+                      <td className="py-2 pr-4 font-semibold">{readinessScore(stats)}</td>
+                    </tr>
+                  ))}
+                  {topDomains.length === 0 && (
+                    <tr>
+                      <td className="py-2 text-gray-600" colSpan={5}>Sem dados suficientes ainda</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+
   const downloadJSON = () => {
     const exportData = {
       metadata: {
@@ -552,15 +759,9 @@ export function EnrichmentTable({
     ]);
 
     try {
-      const firecrawlApiKey = localStorage.getItem("firecrawl_api_key");
-      const openaiApiKey = localStorage.getItem("openai_api_key");
-
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-
-      if (firecrawlApiKey) headers["X-Firecrawl-API-Key"] = firecrawlApiKey;
-      if (openaiApiKey) headers["X-OpenAI-API-Key"] = openaiApiKey;
 
       // Get conversation history (last 10 messages)
       const conversationHistory = agentMessages
@@ -750,6 +951,8 @@ export function EnrichmentTable({
     <div className="flex h-screen gap-0 relative px-16 py-4">
       {/* Main Table - takes remaining space */}
       <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${isChatExpanded ? 'pr-[440px]' : 'pr-0'}`}>
+        {/* Metrics Dashboard */}
+        <MetricsDashboard />
         {/* Progress Header */}
         <Card className="p-4 rounded-md mb-4 mt-12">
           <div className="flex items-center justify-between">
