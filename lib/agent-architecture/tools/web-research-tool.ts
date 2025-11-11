@@ -1,6 +1,124 @@
 import { z } from 'zod';
 import { OpenAIService } from '../../services/openai';
 
+// In-memory cache with 7-day TTL per company
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const researchCache = new Map<string, { ts: number; data: any }>();
+
+type NewsItem = { title: string; url: string; publishedAt?: string };
+
+function normalizeKey(name: string, domain: string, country: string, industry: string) {
+  return [name.trim().toLowerCase(), domain.trim().toLowerCase(), country.trim().toLowerCase(), industry.trim().toLowerCase()].join('|');
+}
+
+async function fetchGoogleNewsRSS(query: string, { hl = 'pt-BR', gl = 'BR', ceid = 'BR:pt-419', limit = 10 }: { hl?: string; gl?: string; ceid?: string; limit?: number }): Promise<NewsItem[]> {
+  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${hl}&gl=${gl}&ceid=${ceid}`;
+  try {
+    const resp = await fetch(url, { method: 'GET' });
+    if (!resp.ok) return [];
+    const xml = await resp.text();
+    // Minimal RSS parsing for items
+    const items: NewsItem[] = [];
+    const itemRegex = /<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?(?:<pubDate>([\s\S]*?)<\/pubDate>)?[\s\S]*?<\/item>/g;
+    let match: RegExpExecArray | null;
+    while ((match = itemRegex.exec(xml)) && items.length < limit) {
+      const title = match[1]?.replace(/<!\[CDATA\[|\]\]>/g, '').trim();
+      const link = match[2]?.trim();
+      const pubDate = match[3]?.trim();
+      if (title && link) items.push({ title, url: link, publishedAt: pubDate });
+    }
+    return items;
+  } catch {
+    return [];
+  }
+}
+
+// Additional BR-specific sources fetchers (simple HTML parsing)
+async function fetchFromSourceList(urls: string[], limit = 10): Promise<NewsItem[]> {
+  const items: NewsItem[] = [];
+  for (const url of urls) {
+    try {
+      const resp = await fetch(url, { method: 'GET' });
+      if (!resp.ok) continue;
+      const html = await resp.text();
+      // naive link extraction
+      const linkRegex = /<a[^>]+href="(https?:[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+      let m: RegExpExecArray | null;
+      while ((m = linkRegex.exec(html)) && items.length < limit) {
+        const link = m[1];
+        const title = m[2].replace(/<[^>]+>/g, '').trim();
+        if (title && link) items.push({ title, url: link });
+      }
+    } catch {}
+  }
+  return items;
+}
+
+function daysAgo(dateStr?: string): number {
+  if (!dateStr) return 9999;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return 9999;
+  const diff = Date.now() - d.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function classifyCategory(title: string): 'organizacional' | 'mercado' | 'performance' {
+  const t = title.toLowerCase();
+  if (/(funding|investimento|rodada|series a|series b|ipo|contrataç|vagas|novo vp|diretor|lançamento|feature|expansão|novo escritório|nova sede)/.test(t)) return 'organizacional';
+  if (/(regulat|bcb|anvisa|diário oficial|concorrent|fusões|aquisições|parceria|evento|conferência|sympla|eventbrite)/.test(t)) return 'mercado';
+  if (/(case|depoimento|press release|blog|whitepaper|redesign|branding|g2|glassdoor|reclame aqui)/.test(t)) return 'performance';
+  return 'mercado';
+}
+
+function baseWeight(title: string): string {
+  const t = title.toLowerCase();
+  if (/(funding|investimento|rodada|series a|series b|ipo|mudança regulat)/.test(t)) return '5';
+  if (/(contrataç|vagas|lançamento|feature|concorrente|m&a|parceria)/.test(t)) return '4';
+  if (/(evento|expansão|novo escritório|nova sede|reviews|glassdoor|reclame aqui)/.test(t)) return '3';
+  return '2';
+}
+
+function momentumScore(signals: Array<{ category: string; weight: string; date?: string }>): 'high' | 'medium' | 'low' {
+  // Simple heuristic combining count, weight, and recency
+  let score = 0;
+  for (const s of signals) {
+    const w = Number(s.weight || '1');
+    const rec = daysAgo(s.date);
+    score += w;
+    if (rec <= 30) score += 2;
+  }
+  if (score >= 20) return 'high';
+  if (score >= 10) return 'medium';
+  return 'low';
+}
+
+function analyzeSentiment(text: string): 'positive' | 'negative' | 'neutral' {
+  const t = (text || '').toLowerCase();
+  const positives = /(recorde|crescimento|contrataç|funding|investimento|parceria|melhoria|lançamento|expansão|aquisição|premiado|contrato|ganhou|aumento)/;
+  const negatives = /(demiss|queda|processo|crise|falha|vazamento|recall|investiga|fraude|problema|atraso|multado|perda|redução|encerramento|fechamento|reclame aqui|reviews negativos)/;
+  if (negatives.test(t)) return 'negative';
+  if (positives.test(t)) return 'positive';
+  return 'neutral';
+}
+
+function detectPatterns(signals: Array<{ title?: string; category?: string; date?: string }>): string[] {
+  const hasFunding = signals.some(s => /funding|investimento|rodada|series a|series b|ipo/.test(String(s.title || '').toLowerCase()));
+  const hasHiring = signals.some(s => /contrataç|vagas|hiring/.test(String(s.title || '').toLowerCase()));
+  const hasExpansion = signals.some(s => /expansão|novo escritório|nova sede|mercado/.test(String(s.title || '').toLowerCase()));
+  const hasPartnership = signals.some(s => /parceria|aliança|joint venture/.test(String(s.title || '').toLowerCase()));
+  const patterns: string[] = [];
+  if (hasFunding && hasHiring && hasExpansion) {
+    patterns.push('Momentum estratégico: funding + contratações + expansão em janela recente.');
+  } else if (hasFunding && hasHiring) {
+    patterns.push('Crescimento acelerado: funding acompanhado de abertura de vagas.');
+  } else if (hasFunding && hasExpansion) {
+    patterns.push('Escala: funding seguido por expansão geográfica/estrutura.');
+  } else if (hasExpansion && hasPartnership) {
+    patterns.push('Go-to-market: expansão apoiada por parceria estratégica.');
+  }
+  return patterns;
+}
+
 const Signal = z.object({
   signal_id: z.string(),
   signal_name: z.string(),
@@ -29,6 +147,7 @@ const CompanyAnalysis = z.object({
   }),
   key_insights: z.string(),
   personalization_hooks: z.array(z.string()),
+  sector_trends: z.array(z.string()).optional(),
 });
 
 const WebResearchInput = z.object({
@@ -46,6 +165,63 @@ export function createWebResearchTool(openai: OpenAIService) {
     parameters: WebResearchInput,
     outputType: CompanyAnalysis,
     execute: async (input: z.infer<typeof WebResearchInput>) => {
+      // Cache check
+      const cacheKey = normalizeKey(input.company_name, input.company_domain, input.company_country, input.company_industry);
+      const cached = researchCache.get(cacheKey);
+      if (cached && (Date.now() - cached.ts) < CACHE_TTL_MS) {
+        return cached.data;
+      }
+
+      // Build targeted queries (focus BR sources + category signals)
+      const company = input.company_name || input.company_domain;
+      const queries = [
+        // Organizacional
+        `${company} funding OR investimento OR rodada OR "Series A" OR "Series B" OR IPO`,
+        `${company} contratações OR vagas OR hiring`,
+        `${company} lançamento OR feature OR produto`,
+        `${company} expansão OR "novo escritório" OR "nova sede"`,
+        // Mercado
+        `${company} regulatória OR BCB OR ANVISA OR "Diário Oficial"`,
+        `${company} concorrente OR parceria OR aquisição OR fusão`,
+        `${company} evento OR conferência OR simpósio OR "LinkedIn Events"`,
+        // Performance
+        `${company} case OR depoimento OR press release OR blog OR whitepaper`,
+        `${company} Glassdoor OR "Reclame Aqui"`,
+        // BR tier-1 outlets
+        `${company} site:valor.globo.com`,
+        `${company} site:exame.com`,
+        `${company} site:infomoney.com.br`,
+        `${company} site:startupi.com.br`,
+        // BR niche outlets
+        `${company} site:startse.com`,
+        `${company} site:neofeed.com.br`,
+        `${company} site:bussola.istoe.com.br`,
+      ];
+
+      const allNews: NewsItem[] = [];
+      for (const q of queries) {
+        const items = await fetchGoogleNewsRSS(q, { limit: 6 });
+        for (const it of items) {
+          if (!allNews.find(n => n.url === it.url)) allNews.push(it);
+        }
+      }
+
+      // Direct scraping of specific Brazilian sources home/news pages
+      const brDirect = await fetchFromSourceList([
+        'https://www.startse.com/noticias/',
+        'https://neofeed.com.br/',
+        'https://bussola.istoe.com.br/',
+      ], 12);
+      for (const it of brDirect) {
+        if (!allNews.find(n => n.url === it.url)) allNews.push(it);
+      }
+
+      // Create context from sources for LLM extraction
+      const sourcesContext = allNews
+        .slice(0, 30)
+        .map(n => `Title: ${n.title}\nURL: ${n.url}\nPublishedAt: ${n.publishedAt || ''}`)
+        .join('\n\n---\n\n');
+
       const systemPrompt = `
 Você é um analista sênior de business intelligence B2B especializado em identificar sinais de contexto para prospecção outbound estratégica.
 OBJETIVO: Realizar varredura completa de sinais públicos sobre a empresa-alvo, priorizando informações acionáveis para personalização de abordagem comercial.
@@ -186,11 +362,93 @@ INSTRUÇÕES ESPECÍFICAS:
 - Para cada sinal, sugira copy_angle específico
 - Inclua 2-3 personalization_hooks prontos para cold email
 - Se não encontrar sinais fortes, seja honesto (overall_signal_strength: low)
+4. TENDÊNCIAS SETORIAIS (ESPECÍFICAS):
+✓ Citações do setor ${input.company_industry} (ex: "Open Banking", "Pix", "IA Generativa", "LGPD")
+✓ Mudanças macro/regulatórias que afetam diretamente o segmento
+✓ Principais players e movimentações nos últimos 90 dias
+
 OUTPUT: JSON estruturado conforme schema do system prompt.
 Data de referência para cálculo de recência: ${new Date().toISOString().split('T')[0]}
+
+ FONTES COLETADAS (Google News e BR tier-1):
+ ${sourcesContext || 'Nenhuma fonte externa encontrada; use dados públicos disponíveis.'}
       `;
       const json = await openai.chatCompletionJSON(systemPrompt, userPrompt);
+
+      // Post-process: compute momentum based on signals
+      try {
+        const ca = (json as any)?.company_analysis;
+        const signals = Array.isArray(ca?.priority_signals) ? ca.priority_signals : [];
+        // Build confidence via cross-validation: count unique sources mentioning similar titles
+        function computeConfidence(title: string, url: string): 'high' | 'medium' | 'low' {
+          const t = (title || '').toLowerCase().replace(/\s+/g, ' ').trim();
+          let matches = 0;
+          for (const n of allNews) {
+            const nt = (n.title || '').toLowerCase();
+            if (nt && t && nt.includes(t.split(' ').slice(0, 5).join(' '))) {
+              matches++;
+            }
+          }
+          if (matches >= 3) return 'high';
+          if (matches === 2) return 'medium';
+          return 'low';
+        }
+
+        const enrichedSignals = signals.map((s: any) => {
+          // Adjust weight with recency
+          const baseW = Number(s.weight || baseWeight(String(s.title || s.signal_name || '')));
+          const recDays = daysAgo(s.date);
+          const newWeight = String(Math.max(1, Math.min(5, baseW + (recDays <= 30 ? 1 : 0))));
+          const sentiment = analyzeSentiment(`${s.title || ''} ${s.description || ''}`);
+          let recommended_action = s.recommended_action || 'consultiva';
+          let copy_angle = s.copy_angle || '';
+          if (sentiment === 'negative') {
+            recommended_action = 'consultiva';
+            copy_angle = copy_angle || 'Abordagem consultiva para mitigar riscos e apoiar reorganização.';
+          } else if (sentiment === 'positive') {
+            recommended_action = 'relacional';
+            copy_angle = copy_angle || 'Conectar oferta com crescimento recente e próximos passos.';
+          } else {
+            recommended_action = 'educativa';
+            copy_angle = copy_angle || 'Educar sobre oportunidades alinhadas ao cenário atual.';
+          }
+          const confidence = computeConfidence(String(s.title || s.signal_name || ''), String(s.source_url || ''));
+          return { ...s, weight: newWeight, recommended_action, copy_angle, confidence };
+        });
+
+        const overall = momentumScore(enrichedSignals);
+        (json as any).company_analysis.priority_signals = enrichedSignals.slice(0, 7);
+        (json as any).company_analysis.total_signals_found = enrichedSignals.length;
+        (json as any).company_analysis.overall_signal_strength = overall;
+        const byCat = { organizacional: 0, mercado: 0, performance: 0 } as Record<string, number>;
+        for (const s of enrichedSignals) {
+          const cat = String(s.category || classifyCategory(String(s.title || '')));
+          if (byCat[cat] !== undefined) byCat[cat]++;
+        }
+        (json as any).company_analysis.signals_by_category = byCat;
+        const patterns = detectPatterns(enrichedSignals);
+        const kiBase = (json as any).company_analysis.key_insights || '';
+        const ki = [kiBase, ...patterns].filter(Boolean).join(' ');
+        (json as any).company_analysis.key_insights = ki.trim();
+        // Sector trends derivation (simple extraction from titles)
+        const trendKeywords = ['open banking', 'pix', 'ia generativa', 'lgpd', 'open finance', 'pagamentos instantâneos', 'telemedicina', 'esg', 'carbono', 'onboarding digital', 'compliance'];
+        const trendsSet = new Set<string>();
+        for (const n of allNews) {
+          const t = (n.title || '').toLowerCase();
+          for (const kw of trendKeywords) {
+            if (t.includes(kw)) trendsSet.add(kw);
+          }
+        }
+        (json as any).company_analysis.sector_trends = Array.from(trendsSet).slice(0, 6);
+
+        // Cache store
+        researchCache.set(cacheKey, { ts: Date.now(), data: json });
+      } catch {
+        // if post-processing fails, still cache raw
+        researchCache.set(cacheKey, { ts: Date.now(), data: json });
+      }
+
       return json;
-  },
+    },
   };
 }

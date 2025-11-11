@@ -9,12 +9,13 @@ export class AgentEnrichmentStrategy {
   
   constructor(
     openaiApiKey: string,
-    exploriumApiKey: string,
+    apolloApiKey: string,
     azureEndpoint: string,
     azureDeployment: string,
-    azureApiVersion: string
+    azureApiVersion: string,
+    snovCredentials?: { clientId?: string; clientSecret?: string; apiKey?: string }
   ) {
-    this.orchestrator = new AgentOrchestrator(exploriumApiKey, openaiApiKey, azureEndpoint, azureDeployment, azureApiVersion);
+    this.orchestrator = new AgentOrchestrator(apolloApiKey, openaiApiKey, azureEndpoint, azureDeployment, azureApiVersion, snovCredentials);
   }
   
   async enrichRow(

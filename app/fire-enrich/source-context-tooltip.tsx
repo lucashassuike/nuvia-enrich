@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ExternalLink, ChevronDown } from 'lucide-react';
+import { ExternalLink, ChevronDown, Activity, CheckCircle, Globe } from 'lucide-react';
 
 interface SourceContextTooltipProps {
   sources: Array<{
@@ -80,6 +80,15 @@ export function SourceContextTooltip({ sources, legacySource, sourceCount, corro
   // Always show info icon for consistency
   const hasSnippets = displaySources.some(s => s.snippet && s.snippet.length > 0);
   
+  const classifyLegacy = (legacy?: string) => {
+    const s = (legacy || '').toLowerCase();
+    if (s.includes('apollo')) return { label: 'Apollo', classes: 'bg-blue-100 text-blue-700', Icon: Activity };
+    if (s.includes('snov')) return { label: 'Snov.io', classes: 'bg-purple-100 text-purple-700', Icon: CheckCircle };
+    return { label: 'Web Research', classes: 'bg-teal-100 text-teal-700', Icon: Globe };
+  };
+
+  const legacyBadge = legacySource ? classifyLegacy(legacySource) : undefined;
+
   return (
     <div className="inline-block relative">
       <button
@@ -130,6 +139,11 @@ export function SourceContextTooltip({ sources, legacySource, sourceCount, corro
               <h4 className="text-xs font-semibold text-gray-700">
                 Found in {displaySources.length} {displaySources.length === 1 ? 'source' : 'sources'}
               </h4>
+              {legacyBadge && (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${legacyBadge.classes}`}>
+                  <legacyBadge.Icon className="w-3 h-3" /> {legacyBadge.label}
+                </span>
+              )}
               {confidence && (
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
                   confidence >= 0.8 ? 'bg-green-100 text-green-700' :

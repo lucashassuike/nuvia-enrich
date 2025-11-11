@@ -102,11 +102,7 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
     const existingNames = selectedFields.map((f) => f.name);
     const name = generateVariableName(preset.displayName, existingNames);
     const field: EnrichmentField = { ...preset, name };
-
-    if (
-      selectedFields.length < 10 &&
-      !selectedFields.find((f) => f.displayName === preset.displayName)
-    ) {
+    if (!selectedFields.find((f) => f.displayName === preset.displayName)) {
       setSelectedFields([...selectedFields, field]);
     }
   };
@@ -118,8 +114,7 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
   const addCustomField = () => {
     if (
       customField.displayName &&
-      customField.description &&
-      selectedFields.length < 10
+      customField.description
     ) {
       const existingNames = selectedFields.map((f) => f.name);
       const name = generateVariableName(customField.displayName, existingNames);
@@ -190,7 +185,7 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
     <div className="space-y-2">
       <div>
         <h3 className="text-body-small font-semibold mb-2">
-          Select fields to enrich (max 10)
+          Select fields to enrich
         </h3>
 
         {/* Preset fields */}
@@ -357,7 +352,7 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
       {/* Selected fields */}
       <div className="mt-2">
         <h4 className="text-body-x-small font-medium mb-1">
-          Selected fields ({selectedFields.length}/10):
+          Selected fields ({selectedFields.length}):
         </h4>
         <div className="flex flex-wrap gap-1.5">
           {selectedFields.map((field) => (
@@ -488,14 +483,22 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
         </div>
       )}
 
-      <Button
-        onClick={handleProceed}
-        disabled={selectedFields.length === 0}
-        variant="orange"
-        className="w-full mt-2"
-      >
-        Start Enrichment
-      </Button>
+      <div className="w-full mt-2">
+        {selectedFields.length === 0 ? (
+          <Button disabled variant="orange" className="w-full">
+            Selecione ao menos 1 campo
+          </Button>
+        ) : (
+          <div className="flex items-center justify-between">
+            <Button onClick={handleProceed} variant="orange" className="flex-1">
+              Confirmar campos
+            </Button>
+            <span className="ml-3 text-body-x-small text-gray-600">
+              O enriquecimento começará automaticamente
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

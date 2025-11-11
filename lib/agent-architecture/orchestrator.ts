@@ -9,11 +9,12 @@ export class AgentOrchestrator {
   private specialized: SpecializedAgentService;
 
   constructor(
-    private exploriumApiKey: string,
+    private apolloApiKey: string,
     private openaiApiKey: string,
     private azureEndpoint: string,
     private azureDeployment: string,
-    private azureApiVersion: string
+    private azureApiVersion: string,
+    private snovCredentials?: { clientId?: string; clientSecret?: string; apiKey?: string }
   ) {
     this.openai = new OpenAIService(openaiApiKey, azureEndpoint, azureDeployment, azureApiVersion);
     this.specialized = new SpecializedAgentService(openaiApiKey, this.openai);
@@ -42,7 +43,7 @@ export class AgentOrchestrator {
     try {
       if (onAgentProgress) onAgentProgress('Starting discovery', 'agent');
 
-      // Extração de possíveis colunas (melhora o match no Explorium)
+      // Extração de possíveis colunas (melhora o match com provedores externos)
       const nameCandidates = ['_name','name','company','company_name','account','account_name','organization','org','empresa'];
       const linkedinCandidates = ['linkedin','linkedin_url','company_linkedin','linkedin_company_url'];
       const urlCandidates = ['website','url','company_url','site'];
@@ -53,22 +54,27 @@ export class AgentOrchestrator {
 
       const agentResult = await runDiscoveryAgent(
         email,
-        this.exploriumApiKey,
+        this.apolloApiKey,
         this.openai,
-        { name, linkedin_url, url }
+        { name, linkedin_url, url, snov: this.snovCredentials }
       );
 
       if (onAgentProgress) onAgentProgress('Discovery completed', 'success');
 
       const companyAnalysis = agentResult.company_analysis;
 
-      // Helper: detect executive-related fields
-      const isExecutiveField = (field: EnrichmentField): boolean => {
-        const name = field.name.toLowerCase();
-        const desc = field.description.toLowerCase();
-        const titles = ['ceo', 'cto', 'cfo', 'coo', 'cmo', 'cpo', 'chief', 'founder', 'president', 'director', 'executive'];
-        return titles.some(t => name.includes(t) || desc.includes(t));
+      // Classifica fonte dinâmica com base na análise do DiscoveryAgent
+      const classifySource = (src?: string): 'Apollo' | 'Snov' | 'Multiple' | 'Web research' => {
+        const s = (src || '').toLowerCase();
+        if (s === 'apollo') return 'Apollo';
+        if (s === 'snov') return 'Snov';
+        if (s === 'multiple') return 'Multiple';
+        return 'Web research';
       };
+      const firmoSource = classifySource((companyAnalysis as any)?.source);
+
+      // Leadership search removido: nenhum campo é tratado como executivo
+      const isExecutiveField = (_field: EnrichmentField): boolean => false;
 
       // Helper to infer industry based on signals and text
       const inferIndustry = (analysis: any): string => {
@@ -127,6 +133,12 @@ export class AgentOrchestrator {
         searchDate: companyAnalysis.search_date,
         dataFreshness: companyAnalysis.data_freshness,
         prioritySignals: companyAnalysis.priority_signals,
+        technologies: (companyAnalysis as any)?.technologies ?? [],
+        prospects: (companyAnalysis as any)?.prospects ?? [],
+        // Email verification attached by DiscoveryAgent (snake_case in source)
+        emailVerification:
+          (companyAnalysis as any)?.email_verification ??
+          (companyAnalysis as any)?.emailVerification ?? undefined,
       };
 
       // If executive fields are requested, run People Agent once and prepare mappings
@@ -137,13 +149,13 @@ export class AgentOrchestrator {
           if (onAgentProgress) onAgentProgress('Searching leadership (CEO, founders, execs)', 'agent');
           const peopleAgent = this.specialized.getPeopleAgent();
           const companyName = (companyAnalysis.company_name as string) || name || '';
-          const domain = (email.split('@')[1]) || '';
+          const domain = (companyAnalysis.company_domain as string) || (email.split('@')[1]) || '';
           const ctx = {
             companyName,
             domain,
-            // Use row-derived values; company_analysis does not include website/linkedin_url
-            website: (url as string) || '',
-            linkedin: (linkedin_url as string) || '',
+            // Prefer values from discovery analysis when available
+            website: ((companyAnalysis as any)?.company_domain ? `https://${(companyAnalysis as any).company_domain}` : (url as string) || ''),
+            linkedin: ((companyAnalysis as any)?.linkedin_url as string) || (linkedin_url as string) || '',
             email,
           };
           const res = await peopleAgent.run(`Find leadership info (CEO, founders, key executives) for ${companyName || domain}. Return names and LinkedIn URLs when available.`, {
@@ -159,6 +171,7 @@ export class AgentOrchestrator {
       }
 
       const enrichments: Record<string, EnrichmentResult> = {};
+      const dataFreshness = (companyAnalysis as any)?.data_freshness || 'unknown';
 
       // Helper: map people agent output to requested executive fields
       const mapExecutiveField = (field: EnrichmentField): { value?: unknown; confidence?: number; sources?: string[] } => {
@@ -274,6 +287,14 @@ export class AgentOrchestrator {
             prioritysignals: 'prioritySignals',
             searchdate: 'searchDate',
             datafreshness: 'dataFreshness',
+            technologies: 'technologies',
+            techstack: 'technologies',
+            tech: 'technologies',
+            prospects: 'prospects',
+            contacts: 'prospects',
+            emailverification: 'emailVerification',
+            email_verification: 'emailVerification',
+            emailstatus: 'emailVerification',
 
             // Portuguese aliases (normalized without spaces/accents)
             empresa: 'companyName',
@@ -300,6 +321,14 @@ export class AgentOrchestrator {
             databusca: 'searchDate',
             recenciadados: 'dataFreshness',
             freshnessdados: 'dataFreshness',
+            tecnologias: 'technologies',
+            pilhatecnologica: 'technologies',
+            tecnologia: 'technologies',
+            contatos: 'prospects',
+            prospectos: 'prospects',
+            liderancas: 'prospects',
+            verificacaoemail: 'emailVerification',
+            statusemail: 'emailVerification',
           };
           const alias = aliasMap[normalized];
           if (alias && Object.prototype.hasOwnProperty.call(derived, alias)) {
@@ -313,27 +342,101 @@ export class AgentOrchestrator {
           if (mapped.value !== undefined) {
             const normalizedExec = normalizeValue(mapped.value);
             if (normalizedExec !== undefined) {
+              const conf = typeof mapped.confidence === 'number' ? mapped.confidence : 0.8;
+              const confidenceLevel = conf >= 0.8 ? 'high' : conf >= 0.5 ? 'medium' : 'low';
+              const primarySourceUrl = Array.isArray(mapped.sources) && mapped.sources.length > 0 ? mapped.sources[0] : undefined;
+              const recommendedAction = confidenceLevel === 'high' ? 'Usar diretamente' : confidenceLevel === 'medium' ? 'Validar via fonte' : 'Requer validação manual';
               enrichments[field.name] = {
                 field: field.name,
                 value: normalizedExec,
-                confidence: typeof mapped.confidence === 'number' ? mapped.confidence : 0.8,
+                confidence: conf,
                 source: 'Web research',
                 sourceContext: [],
                 sourceCount: Array.isArray(mapped.sources) ? mapped.sources.length : undefined,
+                confidenceLevel,
+                primarySourceUrl,
+                recommendedAction,
+                dataFreshness,
               };
               continue; // done with this field
             }
           }
         }
 
+        // Leadership search removido: não gerar mapeamento para 'key_executives'
+
+        if (value === undefined && field.name === 'linkedin_recent_posts' && Array.isArray((companyAnalysis as any)?.linkedin_recent_posts)) {
+          const posts = (companyAnalysis as any).linkedin_recent_posts as Array<{ url: string; text?: string; publishedAt?: string; likes?: number; comments?: number; reshares?: number; engagement_total?: number }>;
+          const urls = posts.map(p => p.url).filter(u => typeof u === 'string' && u);
+          const sourceContext = posts
+            .map(p => (typeof p.url === 'string' && p.url ? { url: p.url, snippet: (p.text || '').slice(0, 180) } : null))
+            .filter(Boolean) as Array<{ url: string; snippet: string }>;
+          const primarySourceUrl = urls[0];
+          const confidence = 0.8;
+          const confidenceLevel = confidence >= 0.8 ? 'high' : confidence >= 0.5 ? 'medium' : 'low';
+          const recommendedAction = confidenceLevel === 'high' ? 'Usar diretamente' : confidenceLevel === 'medium' ? 'Validar via fonte' : 'Requer validação manual';
+          enrichments[field.name] = {
+            field: field.name,
+            value: field.type === 'array' ? urls : urls.join(', '),
+            confidence,
+            source: 'Apify',
+            sourceContext,
+            sourceCount: sourceContext.length,
+            confidenceLevel,
+            recommendedAction,
+            dataFreshness,
+            ...(primarySourceUrl ? { primarySourceUrl } : {}),
+          };
+          continue;
+        }
+
+        if (value === undefined && field.name === 'company_activity' && (companyAnalysis as any)?.company_activity) {
+          const activity = (companyAnalysis as any).company_activity as { postCount?: number; totalEngagement?: number };
+          const summary = `Posts: ${activity.postCount ?? 0}, Engajamento: ${activity.totalEngagement ?? 0}`;
+          const primarySourceUrl = (companyAnalysis as any)?.linkedin_url as string | undefined;
+          const confidence = 0.75;
+          const confidenceLevel = confidence >= 0.8 ? 'high' : confidence >= 0.5 ? 'medium' : 'low';
+          const recommendedAction = confidenceLevel === 'high' ? 'Usar diretamente' : confidenceLevel === 'medium' ? 'Validar via fonte' : 'Requer validação manual';
+          const sourceContext = primarySourceUrl ? [{ url: primarySourceUrl, snippet: 'Resumo de atividade recente no LinkedIn' }] : [];
+          enrichments[field.name] = {
+            field: field.name,
+            value: summary,
+            confidence,
+            source: 'Apify',
+            sourceContext,
+            sourceCount: sourceContext.length || undefined,
+            confidenceLevel,
+            recommendedAction,
+            dataFreshness,
+            ...(primarySourceUrl ? { primarySourceUrl } : {}),
+          };
+          continue;
+        }
+
         const normalized = normalizeValue(value);
         if (normalized !== undefined) {
+          // Atribui fonte dinamicamente
+          const firmoFields = new Set(['companyName', 'industry', 'companyDescription']);
+          // Se for firmographic, usar fonte do company_analysis.source (Apollo/Snov/Multiple)
+          const source = firmoFields.has(field.name)
+            ? firmoSource
+            : // Prospects, technologies e emailVerification vêm da Snov quando presentes; caso contrário, web research
+              ((field.name === 'prospects' || field.name === 'technologies' || field.name === 'emailVerification') ? 'Snov' : 'Web research');
+          const confidence = 0.9;
+          const confidenceLevel = confidence >= 0.8 ? 'high' : confidence >= 0.5 ? 'medium' : 'low';
+          const recommendedAction = confidenceLevel === 'high' ? 'Usar diretamente' : confidenceLevel === 'medium' ? 'Validar via fonte' : 'Requer validação manual';
+          const domainForUrl = (companyAnalysis.company_domain as string) || '';
+          const primarySourceUrl = domainForUrl ? `https://${domainForUrl}` : undefined;
           enrichments[field.name] = {
             field: field.name,
             value: normalized,
-            confidence: 0.9,
-            source: 'Multiple sources',
-            sourceContext: [],
+            confidence,
+            source,
+            sourceContext: primarySourceUrl ? [{ url: primarySourceUrl, snippet: '' }] : [],
+            confidenceLevel,
+            recommendedAction,
+            dataFreshness,
+            ...(primarySourceUrl ? { primarySourceUrl } : {}),
           };
         }
       }

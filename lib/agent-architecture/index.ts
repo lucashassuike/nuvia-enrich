@@ -5,17 +5,19 @@ export * from './core/types';
 
 // Factory function for easy initialization
 export function createAgentOrchestrator(
-  exploriumApiKey: string,
+  apolloApiKey: string,
   openaiApiKey: string,
   azureEndpoint: string,
   azureDeployment: string,
-  azureApiVersion: string
+  azureApiVersion: string,
+  snovCredentials?: { clientId?: string; clientSecret?: string; apiKey?: string }
 ) {
   return new AgentOrchestrator(
-    exploriumApiKey,
+    apolloApiKey,
     openaiApiKey,
     azureEndpoint,
     azureDeployment,
-    azureApiVersion
+    azureApiVersion,
+    snovCredentials
   );
 }

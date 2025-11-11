@@ -1,7 +1,3 @@
 {
-  "mcpServers": {
-    "explorium": {
-      "url": "https://mcp.explorium.ai/mcp"
-    }
-  }
+  "mcpServers": {}
 }

@@ -46,16 +46,8 @@ export const AgentResult = z.object({
 export type AgentResult = z.infer<typeof AgentResult>;
 
 // Final enrichment result
-export interface EnrichmentResult {
-  field: string;
-  value: string | number | boolean | string[] | null;
-  confidence: number;
-  source?: string;
-  sourceContext?: Array<{
-    url: string;
-    snippet: string;
-  }>;
-}
+import type { EnrichmentResult as EnrichmentResultBase } from '../../types';
+export type EnrichmentResult = EnrichmentResultBase;
 
 export interface RowEnrichmentResult {
   rowIndex: number;

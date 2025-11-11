@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { CSVRow, EnrichmentField, RowEnrichmentResult } from "@/lib/types";
+import { SourceContextTooltip } from "./source-context-tooltip";
 import {
   Dialog,
   DialogContent,
@@ -69,6 +70,7 @@ export function EnrichmentTable({
   const [isChatExpanded, setIsChatExpanded] = useState(true);
   const agentMessagesEndRef = useRef<HTMLDivElement>(null);
   const activityScrollRef = useRef<HTMLDivElement>(null);
+  const [autoStarted, setAutoStarted] = useState(false);
 
   // Track when each row's data arrives
   const [rowDataArrivalTime, setRowDataArrivalTime] = useState<
@@ -97,6 +99,40 @@ export function EnrichmentTable({
     }
   }, [agentMessages]);
 
+  // Dynamic display fields: add technologies/prospects if present in enrichments
+  const displayFields: EnrichmentField[] = useMemo(() => {
+    try {
+      const hasTechnologies = Array.from(results.values()).some(
+        (r) => r?.enrichments && r.enrichments['technologies'] !== undefined,
+      );
+      const hasProspects = Array.from(results.values()).some(
+        (r) => r?.enrichments && r.enrichments['prospects'] !== undefined,
+      );
+      const alreadyHasTech = fields.some((f) => f.name === 'technologies');
+      const alreadyHasPros = fields.some((f) => f.name === 'prospects');
+      const extras: EnrichmentField[] = [];
+      if (hasTechnologies && !alreadyHasTech) {
+        extras.push({
+          name: 'technologies',
+          displayName: 'Technologies',
+          type: 'array',
+          description: 'Detected technology stack',
+        });
+      }
+      if (hasProspects && !alreadyHasPros) {
+        extras.push({
+          name: 'prospects',
+          displayName: 'Prospects',
+          type: 'array',
+          description: 'Contacts or prospects discovered',
+        });
+      }
+      return [...fields, ...extras];
+    } catch {
+      return fields;
+    }
+  }, [results, fields]);
+
   // Calculate animation delay for each cell
   const getCellAnimationDelay = useCallback(
     (rowIndex: number, fieldIndex: number) => {
@@ -105,18 +141,76 @@ export function EnrichmentTable({
 
       // Reduced animation time for better UX
       const totalRowAnimationTime = 2000; // 2 seconds
-      const delayPerCell = Math.min(300, totalRowAnimationTime / fields.length); // Max 300ms per cell
+      const delayPerCell = Math.min(300, totalRowAnimationTime / displayFields.length); // Max 300ms per cell
 
       // Add delay based on field position
       return fieldIndex * delayPerCell;
     },
-    [rowDataArrivalTime, fields.length],
+    [rowDataArrivalTime, displayFields.length],
   );
+
+  // Source badge helper
+  const SourceBadge = ({ source }: { source?: string }) => {
+    const src = (source || '').toLowerCase();
+    let label = 'Web Research';
+    let classes = 'bg-teal-100 text-teal-700';
+    let icon = 'globe';
+    if (src.includes('apollo')) {
+      label = 'Apollo';
+      classes = 'bg-blue-100 text-blue-700';
+      icon = 'activity';
+    } else if (src.includes('snov')) {
+      label = 'Snov.io';
+      classes = 'bg-purple-100 text-purple-700';
+      icon = 'check';
+    } else if (src.includes('web')) {
+      label = 'Web Research';
+      classes = 'bg-teal-100 text-teal-700';
+      icon = 'globe';
+    }
+    const IconComp = icon === 'activity' ? Activity : icon === 'check' ? CheckCircle : Globe;
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-body-x-small ${classes}`} title={label}>
+        <IconComp style={{ width: '14px', height: '14px' }} /> {label}
+      </span>
+    );
+  };
+
+  // Confidence badge helper
+  const ConfidenceBadge = ({ level, url, action }: { level?: 'high' | 'medium' | 'low'; url?: string; action?: string }) => {
+    if (!level && !url) return null;
+    const colorClasses = level === 'high'
+      ? 'bg-green-100 text-green-700'
+      : level === 'medium'
+        ? 'bg-yellow-100 text-yellow-700'
+        : 'bg-red-100 text-red-700';
+    const label = level ? (level === 'high' ? 'High' : level === 'medium' ? 'Medium' : 'Low') : 'Source';
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-body-x-small ${colorClasses}`} title={action || label}>
+        <span aria-hidden>●</span>
+        {label}
+        {url && (
+          <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 ml-1 text-blue-600 hover:text-blue-800">
+            <ExternalLink style={{ width: '14px', height: '14px' }} />
+          </a>
+        )}
+      </span>
+    );
+  };
 
   const startEnrichment = useCallback(async () => {
     setStatus("processing");
 
     try {
+      // Validate fields before sending to backend (no upper cap)
+      if (!fields || !Array.isArray(fields) || fields.length === 0) {
+        setStatus("error");
+        const count = Array.isArray(fields) ? fields.length : 0;
+        toast.error(`Please select at least 1 field (currently ${count})`);
+        console.warn("Invalid fields selection:", fields);
+        return;
+      }
+
       // Client no longer sends API keys; server uses Azure env
 
       const headers: Record<string, string> = {
@@ -124,22 +218,39 @@ export function EnrichmentTable({
         ...(useAgents && { "x-use-agents": "true" }),
       };
 
+      // If user saved Apollo key locally, forward it to backend (optional)
+      try {
+        const savedApolloKey = typeof window !== "undefined" ? localStorage.getItem("apollo_api_key") : null;
+        if (savedApolloKey) {
+          headers["X-Apollo-API-Key"] = savedApolloKey;
+        }
+      } catch {}
+
       // No client-provided API keys; rely on server configuration
 
       const response = await fetch("/api/enrich", {
         method: "POST",
         headers,
         body: JSON.stringify({
-          rows,
           fields,
           emailColumn,
+          // Passa extras para backend via nameColumn para contexto e coloca em cada row
+          nameColumn: undefined,
+          // Inject extras on each row for orchestrator discovery
+          rows,
           useAgents,
           useV2Architecture: true, // Use new agent architecture when agents are enabled
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to start enrichment");
+        let details = "";
+        try {
+          const err = await response.json();
+          details = err?.details || err?.error || "";
+        } catch {}
+        setStatus("error");
+        throw new Error(details ? `Failed to start enrichment: ${details}` : "Failed to start enrichment");
       }
 
       const reader = response.body?.getReader();
@@ -287,15 +398,52 @@ export function EnrichmentTable({
       }
     } catch (error) {
       console.error("Failed to start enrichment:", error);
-      setStatus("completed");
+      setStatus("error");
+      try {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to start enrichment"
+        );
+      } catch {}
     }
   }, [fields, rows, emailColumn, useAgents]);
 
+  // Auto-start enrichment when component receives valid inputs
   useEffect(() => {
-    if (status === "idle") {
-      startEnrichment();
+    const canStart =
+      !autoStarted &&
+      (status === "idle" || status === "error") &&
+      Array.isArray(rows) && rows.length > 0 &&
+      Array.isArray(fields) && fields.length > 0 &&
+      !!emailColumn;
+    if (canStart) {
+      setAutoStarted(true);
+      const timer = setTimeout(() => {
+        startEnrichment();
+      }, 600); // small UX delay
+      return () => clearTimeout(timer);
     }
-  }, [startEnrichment, status]); // Add proper dependencies
+  }, [rows, fields, emailColumn, status, autoStarted, startEnrichment]);
+
+  // Only expose manual start for debugging (not used in UI)
+  const handleStartEnrichment = useCallback(async () => {
+    if (status === "idle" || status === "error") {
+      await startEnrichment();
+    }
+  }, [status, startEnrichment]);
+
+  // Expose the manual start function to parent if needed
+  useEffect(() => {
+    // Register the start function for external access
+    if (typeof window !== 'undefined') {
+      (window as any).__startEnrichment = handleStartEnrichment;
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).__startEnrichment;
+      }
+    };
+  }, [handleStartEnrichment]);
 
   const cancelEnrichment = async () => {
     if (sessionId) {
@@ -315,9 +463,9 @@ export function EnrichmentTable({
     // Build headers
     const headers = [
       emailColumn || "email",
-      ...fields.map((f) => f.displayName),
-      ...fields.map((f) => `${f.displayName}_confidence`),
-      ...fields.map((f) => `${f.displayName}_source`),
+      ...displayFields.map((f) => f.displayName),
+      ...displayFields.map((f) => `${f.displayName}_confidence`),
+      ...displayFields.map((f) => `${f.displayName}_source`),
     ];
 
     const csvRows = [headers.map((h) => `"${h}"`).join(",")];
@@ -331,7 +479,7 @@ export function EnrichmentTable({
       values.push(`"${email || ""}"`);
 
       // Add field values
-      fields.forEach((field) => {
+      displayFields.forEach((field) => {
         const enrichment = result?.enrichments[field.name];
         const value = enrichment?.value;
         if (value === undefined || value === null) {
@@ -349,7 +497,7 @@ export function EnrichmentTable({
       });
 
       // Add confidence scores
-      fields.forEach((field) => {
+      displayFields.forEach((field) => {
         const enrichment = result?.enrichments[field.name];
         values.push(
           enrichment?.confidence ? enrichment.confidence.toFixed(2) : "",
@@ -357,7 +505,7 @@ export function EnrichmentTable({
       });
 
       // Add sources
-      fields.forEach((field) => {
+      displayFields.forEach((field) => {
         const enrichment = result?.enrichments[field.name];
         if (enrichment?.sourceContext && enrichment.sourceContext.length > 0) {
           const urls = enrichment.sourceContext.map((s) => s.url).join("; ");
@@ -389,12 +537,14 @@ export function EnrichmentTable({
   const classifySource = (enrichment?: { source?: string; sourceContext?: { url: string }[] }) => {
     if (!enrichment) return 'derived';
     const src = (enrichment.source || '').toLowerCase();
-    if (src.includes('explorium')) return 'explorium';
+    if (src.includes('apollo')) return 'apollo';
+    if (src.includes('snov')) return 'snov';
     if (enrichment.sourceContext && enrichment.sourceContext.length > 0) return 'web';
+    if (src.includes('web research')) return 'web';
     return 'derived';
   };
 
-  const sourceCounts = { explorium: 0, web: 0, derived: 0 };
+  const sourceCounts = { apollo: 0, snov: 0, web: 0, derived: 0 };
   const totalFieldsWithValues = processedRows.reduce((acc, { result }) => {
     let count = 0;
     Object.values(result.enrichments || {}).forEach((enr) => {
@@ -521,23 +671,32 @@ export function EnrichmentTable({
             <p className="text-body-medium font-semibold text-gray-900 mb-8">Fontes dos dados</p>
             <div className="flex gap-12">
               <div className="flex-1">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-gray-700">Explorium</span>
-                  <span className="text-gray-900 font-semibold">{sourceCounts.explorium} ({sourcePercent(sourceCounts.explorium)}%)</span>
-                </div>
-                <div className="h-2 w-full bg-gray-100 rounded">
-                  <div className="h-2 bg-green-600 rounded" style={{ width: `${sourcePercent(sourceCounts.explorium)}%` }} />
-                </div>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-gray-700">Web Research</span>
-                  <span className="text-gray-900 font-semibold">{sourceCounts.web} ({sourcePercent(sourceCounts.web)}%)</span>
-                </div>
-                <div className="h-2 w-full bg-gray-100 rounded">
-                  <div className="h-2 bg-blue-600 rounded" style={{ width: `${sourcePercent(sourceCounts.web)}%` }} />
-                </div>
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-gray-700">Apollo</span>
+              <span className="text-gray-900 font-semibold">{sourceCounts.apollo} ({sourcePercent(sourceCounts.apollo)}%)</span>
+            </div>
+            <div className="h-2 w-full bg-gray-100 rounded">
+              <div className="h-2 bg-blue-600 rounded" style={{ width: `${sourcePercent(sourceCounts.apollo)}%` }} />
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-gray-700">Snov.io</span>
+              <span className="text-gray-900 font-semibold">{sourceCounts.snov} ({sourcePercent(sourceCounts.snov)}%)</span>
+            </div>
+            <div className="h-2 w-full bg-gray-100 rounded">
+              <div className="h-2 bg-purple-600 rounded" style={{ width: `${sourcePercent(sourceCounts.snov)}%` }} />
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-gray-700">Web Research</span>
+              <span className="text-gray-900 font-semibold">{sourceCounts.web} ({sourcePercent(sourceCounts.web)}%)</span>
+            </div>
+            <div className="h-2 w-full bg-gray-100 rounded">
+              <div className="h-2 bg-blue-600 rounded" style={{ width: `${sourcePercent(sourceCounts.web)}%` }} />
+            </div>
+          </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-gray-700">Derivados/LLM</span>
@@ -594,7 +753,7 @@ export function EnrichmentTable({
         exportDate: new Date().toISOString(),
         totalRows: rows.length,
         processedRows: results.size,
-        fields: fields.map((f) => ({
+        fields: displayFields.map((f) => ({
           name: f.name,
           displayName: f.displayName,
           type: f.type,
@@ -613,7 +772,7 @@ export function EnrichmentTable({
         };
 
         if (result) {
-          fields.forEach((field) => {
+          displayFields.forEach((field) => {
             const enrichment = result.enrichments[field.name];
             if (enrichment) {
               enrichedRow[field.name] = {
@@ -962,8 +1121,20 @@ export function EnrichmentTable({
                   ? "Enriching Data"
                   : status === "completed"
                     ? "Enrichment Complete"
+                  : status === "error"
+                  ? "Enrichment Failed"
                     : "Enrichment Cancelled"}
               </h3>
+              {status === "error" && (
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600" />
+                    <span className="text-body-small text-red-800">
+                      Failed to start enrichment. Please check your configuration and try again.
+                    </span>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-4 mt-1">
                 <span className="text-body-small text-zinc-600">
                   {results.size} of {rows.length} rows processed
@@ -985,6 +1156,13 @@ export function EnrichmentTable({
             </div>
 
             <div className="flex items-center gap-3">
+              {(status === "idle" || status === "error") && (
+                <div className="inline-flex items-center gap-2 px-3 py-2 rounded-6 bg-blue-50 border border-blue-200">
+                  <Activity style={{ width: '14px', height: '14px' }} className="animate-spin text-blue-600" />
+                  <span className="text-body-small text-blue-800">Iniciando enriquecimento automaticamente...</span>
+                </div>
+              )}
+              
               {(status === "completed" ||
                 status === "cancelled" ||
                 (status === "processing" && results.size > 0)) && (
@@ -1015,6 +1193,11 @@ export function EnrichmentTable({
                   Cancel
                 </button>
               )}
+              {(status === "idle" || status === "error") && (
+                <span className="text-body-small text-gray-600">
+                  Aguarde — auto-start em andamento
+                </span>
+              )}
             </div>
           </div>
         </Card>
@@ -1028,7 +1211,7 @@ export function EnrichmentTable({
                     <th className="sticky left-0 z-10 bg-white px-6 py-4 text-left text-label-medium text-gray-700 border-r-2 border-gray-300 w-64">
                       {emailColumn || "Email"}
                     </th>
-                    {fields.map((field) => (
+                    {displayFields.map((field) => (
                       <th
                         key={field.name}
                         className="px-6 py-4 text-left text-label-medium text-gray-700 bg-gray-50 w-80"
@@ -1113,7 +1296,7 @@ export function EnrichmentTable({
                     {/* Check if this row is skipped and render a single merged cell */}
                     {result?.status === "skipped" ? (
                       <td
-                        colSpan={fields.length}
+                        colSpan={displayFields.length}
                         className="p-12 text-body-small border-l border-gray-100 bg-gray-50"
                       >
                         <div className="flex flex-col items-start gap-2">
@@ -1126,7 +1309,7 @@ export function EnrichmentTable({
                         </div>
                       </td>
                     ) : (
-                      fields.map((field, fieldIndex) => {
+                      displayFields.map((field, fieldIndex) => {
                         const enrichment = result?.enrichments[field.name];
                         const cellKey = `${index}-${field.name}`;
 
@@ -1254,11 +1437,28 @@ export function EnrichmentTable({
                                         )}
                                       </div>
                                     ) : (
-                                      <div
-                                        className="truncate max-w-xs"
-                                        title={String(enrichment.value)}
-                                      >
-                                        {enrichment.value || "-"}
+                                      <div className="truncate max-w-xs">
+                                        <div title={String(enrichment.value)}>
+                                          {enrichment.value || "-"}
+                                        </div>
+                                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                          {enrichment?.source && (
+                                            <SourceBadge source={enrichment.source} />
+                                          )}
+                                          {(enrichment?.confidenceLevel || enrichment?.primarySourceUrl) && (
+                                            <ConfidenceBadge level={enrichment.confidenceLevel as any} url={enrichment.primarySourceUrl} action={enrichment.recommendedAction} />
+                                          )}
+                                          {enrichment?.sourceContext && enrichment.sourceContext.length > 0 && (
+                                            <SourceContextTooltip 
+                                              sources={enrichment.sourceContext}
+                                              legacySource={enrichment.source}
+                                              sourceCount={enrichment.sourceCount}
+                                              corroboration={enrichment.corroboration}
+                                              confidence={enrichment.confidence}
+                                              value={enrichment.value}
+                                            />
+                                          )}
+                                        </div>
                                       </div>
                                     )}
                                   </div>

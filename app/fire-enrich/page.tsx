@@ -88,7 +88,10 @@ export default function CSVEnrichmentPage() {
       }
     };
   
-    const handleStartEnrichment = (email: string, fields: EnrichmentField[]) => {
+    const handleStartEnrichment = (
+      email: string,
+      fields: EnrichmentField[],
+    ) => {
       setEmailColumn(email);
       setSelectedFields(fields);
       setStep("enrichment");

@@ -21,7 +21,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body: EnrichmentRequest = await request.json();
+    // Robust body parsing: handle empty or malformed JSON gracefully
+    const reqForBody = request.clone();
+    let body: EnrichmentRequest | null = null;
+    try {
+      body = (await reqForBody.json()) as EnrichmentRequest;
+    } catch (err) {
+      // Fallback to raw text to detect empty body or non-JSON payloads
+      try {
+        const rawText = await reqForBody.text();
+        if (!rawText || rawText.trim().length === 0) {
+          return NextResponse.json(
+            { error: 'Empty request body' },
+            { status: 400 }
+          );
+        }
+        body = JSON.parse(rawText);
+      } catch (parseErr) {
+        console.error('Failed to parse request body for /api/enrich:', parseErr);
+        return NextResponse.json(
+          { error: 'Invalid JSON body' },
+          { status: 400 }
+        );
+      }
+    }
+    // At this point, body must be a valid object
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json(
+        { error: 'Invalid request payload' },
+        { status: 400 }
+      );
+    }
     const { rows, fields, emailColumn, nameColumn } = body;
 
     if (!rows || rows.length === 0) {
@@ -31,9 +61,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!fields || fields.length === 0 || fields.length > 10) {
+    if (!fields || fields.length === 0) {
       return NextResponse.json(
-        { error: 'Please provide 1-10 fields to enrich' },
+        { error: 'Please provide at least 1 field to enrich' },
         { status: 400 }
       );
     }
@@ -52,21 +82,25 @@ export async function POST(request: NextRequest) {
 
     // Check environment variables and headers for API keys
     const azureApiKey = process.env.AZURE_OPENAI_API_KEY || request.headers.get('X-Azure-API-Key');
-    const exploriumApiKey = process.env.EXPLORIUM_API_KEY || request.headers.get('X-Explorium-API-Key');
+    // Apollo is optional: if missing, we degrade gracefully and skip Apollo calls
+    const apolloApiKey = process.env.APOLLO_API_KEY || request.headers.get('X-Apollo-API-Key') || '';
     const azureEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
     const azureDeployment = process.env.AZURE_OPENAI_DEPLOYMENT;
     const azureApiVersion = process.env.AZURE_OPENAI_API_VERSION;
+    const snovClientId = process.env.SNOV_CLIENT_ID || request.headers.get('X-Snov-Client-Id') || undefined;
+    const snovClientSecret = process.env.SNOV_CLIENT_SECRET || request.headers.get('X-Snov-Client-Secret') || undefined;
+    const snovCredentials = (snovClientId && snovClientSecret) ? { clientId: snovClientId, clientSecret: snovClientSecret } : undefined;
     
-    if (!azureApiKey || !exploriumApiKey || !azureEndpoint || !azureDeployment || !azureApiVersion) {
+    // Require only Azure OpenAI configuration; Apollo can be absent
+    if (!azureApiKey || !azureEndpoint || !azureDeployment || !azureApiVersion) {
       console.error('Missing API keys:', { 
         hasAzureApiKey: !!azureApiKey,
-        hasExplorium: !!exploriumApiKey,
         hasAzureEndpoint: !!azureEndpoint,
         hasAzureDeployment: !!azureDeployment,
         hasAzureApiVersion: !!azureApiVersion
       });
       return NextResponse.json(
-        { error: 'Server configuration error: Missing API keys' },
+        { error: 'Server configuration error: Missing Azure OpenAI configuration' },
         { status: 500 }
       );
     }
@@ -77,10 +111,11 @@ export async function POST(request: NextRequest) {
     console.log(`[STRATEGY] Using ${strategyName} - Advanced multi-agent architecture with specialized agents`);
     const enrichmentStrategy = new AgentEnrichmentStrategy(
       azureApiKey,
-      exploriumApiKey,
+      apolloApiKey,
       azureEndpoint,
       azureDeployment,
-      azureApiVersion
+      azureApiVersion,
+      snovCredentials
     );
 
     // Load skip list

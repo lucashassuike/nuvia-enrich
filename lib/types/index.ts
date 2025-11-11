@@ -49,6 +49,14 @@ export interface EnrichmentResult {
     snippet: string;
   }[];
   sourceCount?: number;
+  // Explicit confidence level for UI indicators
+  confidenceLevel?: 'high' | 'medium' | 'low';
+  // Primary, canonical source URL for quick inspection
+  primarySourceUrl?: string;
+  // Suggested action based on data reliability
+  recommendedAction?: string;
+  // Optional freshness indicator (e.g., 'fresh', 'stale', date string)
+  dataFreshness?: string;
   corroboration?: {
     evidence: Array<{
       value: string | number | boolean | string[];

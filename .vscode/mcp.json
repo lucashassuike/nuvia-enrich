@@ -1,10 +1,6 @@
 {
   "mcp": {
     "servers": {
-      "explorium": {
-        "type": "http",
-        "url": "https://mcp.explorium.ai/mcp"
-      }
     }
   }
 }

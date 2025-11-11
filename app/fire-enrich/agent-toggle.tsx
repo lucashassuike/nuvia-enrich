@@ -39,10 +39,7 @@ export function AgentToggle({ checked, onCheckedChange, fields }: AgentTogglePro
       fieldDescriptions.includes('funding')) {
     recommendedAgents.push('Fundraising Intelligence');
   }
-  if (fieldNames.some(n => n.includes('ceo') || n.includes('founder')) ||
-      fieldDescriptions.includes('leadership')) {
-    recommendedAgents.push('People & Leadership');
-  }
+  // Leadership recommendations removidos por preferência do usuário
   if (fieldNames.some(n => n.includes('product') || n.includes('tech')) ||
       fieldDescriptions.includes('product')) {
     recommendedAgents.push('Product & Technology');

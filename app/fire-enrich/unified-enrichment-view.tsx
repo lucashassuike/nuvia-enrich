@@ -33,7 +33,10 @@ import { AlertCircle } from "lucide-react";
 interface UnifiedEnrichmentViewProps {
   rows: CSVRow[];
   columns: string[];
-  onStartEnrichment: (emailColumn: string, fields: EnrichmentField[]) => void;
+  onStartEnrichment: (
+    emailColumn: string,
+    fields: EnrichmentField[],
+  ) => void;
 }
 
 // Presets por caso de uso
@@ -49,6 +52,11 @@ const PRESET_FIELDS: EnrichmentField[] = [
   // Dados complementares
   { name: "signalsFound", displayName: "Qtd. Sinais", description: "Total de sinais encontrados", type: "number", required: false },
   { name: "searchDate", displayName: "Data da Pesquisa", description: "Data da varredura", type: "string", required: false },
+  // Verificação de email (Snov)
+  { name: "emailVerification", displayName: "Verificação de Email", description: "Status de verificação de email (Snov)", type: "string", required: false },
+  // Integrações novas
+  { name: "linkedin_recent_posts", displayName: "Posts LinkedIn", description: "Posts recentes do LinkedIn (Apify)", type: "array", required: false },
+  { name: "company_activity", displayName: "Atividade", description: "Resumo de atividade social", type: "string", required: false },
 ];
 
 export function UnifiedEnrichmentView({
@@ -64,6 +72,8 @@ export function UnifiedEnrichmentView({
     PRESET_FIELDS.find((f) => f.name === "prioritySignals")!,
     PRESET_FIELDS.find((f) => f.name === "personalizationHooks")!,
     PRESET_FIELDS.find((f) => f.name === "signalStrength")!,
+    // Inclui verificação de email por padrão quando disponível
+    PRESET_FIELDS.find((f) => f.name === "emailVerification")!,
   ]);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [showNaturalLanguage, setShowNaturalLanguage] = useState(false);
@@ -82,6 +92,80 @@ export function UnifiedEnrichmentView({
     description: "",
     type: "string",
   });
+
+  const handleStart = () => {
+    if (!emailColumn) {
+      toast.error("Please select an email column");
+      return;
+    }
+    if (selectedFields.length === 0) {
+      toast.error("Please select at least 1 field");
+      return;
+    }
+
+    // Navega para a tela de resultados (renderiza EnrichmentTable)
+    onStartEnrichment(emailColumn, selectedFields);
+
+    // Tenta iniciar imediatamente o enriquecimento chamando a função exposta
+    // pelo EnrichmentTable (window.__startEnrichment), com retry/backoff curto.
+    try {
+      toast.message("Iniciando enriquecimento…", {
+        description: "Preparando a tabela e conectando ao servidor",
+      });
+
+      let attempts = 0;
+      const maxAttempts = 20; // ~4s com 200ms de intervalo
+      const interval = 200;
+
+      const tryStart = () => {
+        attempts += 1;
+        const starter = typeof window !== "undefined" && (window as any).__startEnrichment;
+        if (typeof starter === "function") {
+          try {
+            starter();
+            toast.success("Enriquecimento iniciado");
+          } catch (err) {
+            console.error("Falha ao iniciar enriquecimento:", err);
+            toast.error("Falha ao iniciar enriquecimento");
+          }
+          return;
+        }
+        if (attempts < maxAttempts) {
+          setTimeout(tryStart, interval);
+        } else {
+          // Se a função não apareceu, o auto-start do EnrichmentTable ainda fará o start
+          // após montar; apenas informe o usuário.
+          toast.message("Preparando ambiente…", {
+            description: "A tabela iniciará automaticamente em instantes",
+          });
+        }
+      };
+
+      // Pequeno delay para garantir montagem da tabela antes do primeiro check
+      setTimeout(tryStart, 300);
+    } catch (e) {
+      console.error("Erro ao agendar início imediato:", e);
+    }
+  };
+
+  // Auto-start enrichment when step 2 is reached and inputs are valid
+  const [autoStarted, setAutoStarted] = useState(false);
+  const [autoStartEnabled] = useState(true); // permite início automático opcional
+  useEffect(() => {
+    if (
+      step === 2 &&
+      emailColumn &&
+      selectedFields.length > 0 &&
+      !autoStarted &&
+      autoStartEnabled
+    ) {
+      setAutoStarted(true);
+      const timer = setTimeout(() => {
+        handleStart();
+      }, 4000); // pequena espera para permitir início manual primeiro
+      return () => clearTimeout(timer);
+    }
+  }, [step, emailColumn, selectedFields, autoStarted]);
 
   // Auto-detect email column but stay on step 1 for confirmation
   useEffect(() => {
@@ -104,10 +188,6 @@ export function UnifiedEnrichmentView({
   }
 
   const handleAddField = (field: EnrichmentField) => {
-    if (selectedFields.length >= 10) {
-      toast.error("Maximum 10 fields allowed");
-      return;
-    }
     if (!selectedFields.find((f) => f.name === field.name)) {
       setSelectedFields([...selectedFields, field]);
     }
@@ -556,12 +636,12 @@ export function UnifiedEnrichmentView({
                   Select fields to enrich
                 </h3>
                 <p className="text-body-medium text-gray-600">
-                  Choose up to 10 fields to add to your data
+                  Select any fields you need for enrichment
                 </p>
               </div>
               <div className="flex items-center gap-2 px-12 py-8 bg-gray-100 rounded-full">
                 <span className="text-body-medium font-semibold text-gray-900">
-                  {selectedFields.length} / 10
+                  {selectedFields.length} selected
                 </span>
               </div>
             </div>
@@ -579,7 +659,7 @@ export function UnifiedEnrichmentView({
                   return (
                     <button
                       key={field.name}
-                      disabled={selectedFields.length >= 10 && !isSelected}
+                      disabled={false}
                       onClick={() =>
                         isSelected
                           ? handleRemoveField(field.name)
@@ -590,9 +670,7 @@ export function UnifiedEnrichmentView({
                         isSelected
                           ? "bg-gray-900 text-white hover:bg-gray-800"
                           : "text-accent-black bg-black-alpha-4 hover:bg-black-alpha-6",
-                        selectedFields.length >= 10 &&
-                          !isSelected &&
-                          "opacity-50 cursor-not-allowed",
+                        undefined,
                       )}
                     >
                       {field.displayName}
@@ -602,6 +680,8 @@ export function UnifiedEnrichmentView({
                 })}
               </div>
             </Card>
+
+            {/* Inputs de teste removidos: LinkedIn/Domain agora são detectados automaticamente pelo sistema */}
 
             {/* Add additional fields section */}
             <Card className="p-16 border-gray-200 bg-white rounded-8">
@@ -780,9 +860,10 @@ export function UnifiedEnrichmentView({
                       className="rounded-6 px-6 py-4 text-body-medium bg-gray-900 text-white hover:bg-gray-800"
                       onClick={() => {
                         // Full Analysis: todos os campos principais
+                        // Full Analysis seleciona todos os campos disponíveis
                         setSelectedFields(PRESET_FIELDS);
                       }}
-                    >Full Analysis</button>
+                     >Full Analysis</button>
                   </div>
                 </div>
               </div>
@@ -843,8 +924,8 @@ export function UnifiedEnrichmentView({
               </Card>
             )}
 
-            {/* Navigation Buttons */}
-            <div className="flex justify-between pt-16">
+            {/* Navigation / Auto-start Indicator */}
+            <div className="flex justify-between pt-16 items-center">
               <button
                 onClick={() => setStep(1)}
                 className="rounded-8 px-10 py-6 gap-4 text-body-medium text-accent-black bg-black-alpha-4 hover:bg-black-alpha-6 transition-colors flex items-center"
@@ -852,13 +933,21 @@ export function UnifiedEnrichmentView({
                 <ArrowLeft style={{ width: '20px', height: '20px' }} />
                 Back
               </button>
-              <button
-                onClick={() => onStartEnrichment(emailColumn, selectedFields)}
-                disabled={selectedFields.length === 0}
-                className="rounded-8 px-10 py-6 gap-4 text-body-medium text-accent-black bg-black-alpha-4 hover:bg-black-alpha-6 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Start Enrichment
-              </button>
+              <div className="flex items-center gap-8">
+                <button
+                  onClick={handleStart}
+                  disabled={!emailColumn || selectedFields.length === 0}
+                  className="px-14 py-8 bg-gray-900 text-white text-body-medium rounded-6 hover:bg-gray-800 transition-colors font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Iniciar Enriquecimento
+                </button>
+                <div className="flex items-center gap-3 text-body-medium text-gray-700">
+                  <span className="inline-block w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+                  <span>
+                    ou aguarde início automático...
+                  </span>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
