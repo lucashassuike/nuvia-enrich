@@ -1,10 +1,10 @@
-# Fire Enrich - AI-Powered Data Enrichment Tool
+# Nuvia Enrich - AI-Powered Data Enrichment Tool
 
 <div align="center">
   <img src="https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExNjJwMnF2cW5zbXBhbGV6NXBpb3lkZmVhMWEwY3hmdmt3d3ZtbWc5YSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/QhpbWI09KyFZ0rwD72/giphy.gif" alt="Fire Enrich Demo" width="100%" />
 </div>
 
-Turn a simple list of emails into a rich dataset with company profiles, funding data, tech stacks, and more. Powered by [Firecrawl](https://www.firecrawl.dev/) and a multi-agent AI system.
+Turn a simple list of emails into a rich dataset with company profiles, funding data, tech stacks, and more. Powered by Nuvia and a multi-agent AI system.
 
 ## Technologies
 
@@ -20,7 +20,7 @@ Turn a simple list of emails into a rich dataset with company profiles, funding 
 
 | Service | Purpose | Get Key |
 |---------|---------|---------|
-| Firecrawl | Web scraping and content aggregation | [firecrawl.dev/app/api-keys](https://www.firecrawl.dev/app/api-keys) |
+| Nuvia | Web scraping and content aggregation |
 | OpenAI | Intelligent data extraction | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 
 ### Quick Start

@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
 import { CSVRow } from "@/lib/types";
-import { Upload, Download, AtSign, InfinityIcon } from "lucide-react";
+import { Upload, Download } from "lucide-react";
 import Button from "@/components/shared/button/button";
 import Link from "next/link";
 import { FIRE_ENRICH_CONFIG } from "./config";
@@ -92,12 +92,12 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
         className={`
           relative overflow-hidden
           border-2 border-dashed rounded-xl text-center cursor-pointer
-          transition-all duration-300 ease-out min-h-[150px]
+          transition-all duration-300 ease-out min-h-[180px]
           flex flex-col items-center justify-center
           ${
             isDragActive
-              ? "border-heat-100 bg-heat-4 shadow-xl"
-              : "border-border-muted hover:border-heat-100 bg-accent-white hover:bg-heat-4 hover:shadow-lg"
+              ? "border-[#7A5DF6] bg-[#F4F1FF] shadow-md"
+              : "border-[#7A5DF6]/40 bg-white hover:bg-[#F4F1FF] hover:shadow"
           }
           ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}
         `}
@@ -105,13 +105,13 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
         <input {...getInputProps()} disabled={isProcessing} />
 
         {/* Background pattern */}
-        <div className="absolute inset-0 opacity-3">
+        <div className="absolute inset-0 opacity-5">
           <div
             className="absolute inset-0"
             style={{
               backgroundImage:
-                "radial-gradient(circle at 2px 2px, var(--heat-100) 1px, transparent 1px)",
-              backgroundSize: "24px 24px",
+                "radial-gradient(circle at 2px 2px, rgba(37,99,235,0.35) 1px, transparent 1px)",
+              backgroundSize: "20px 20px",
             }}
           />
         </div>
@@ -121,9 +121,9 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
             <div className="flex flex-col items-center gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-heat-100 rounded-full animate-pulse" />
-                  <div className="w-2 h-2 bg-heat-100 rounded-full animate-pulse animation-delay-150" />
-                  <div className="w-2 h-2 bg-heat-100 rounded-full animate-pulse animation-delay-300" />
+                  <div className="w-2 h-2 bg-[#7A5DF6] rounded-full animate-pulse" />
+                  <div className="w-2 h-2 bg-[#7A5DF6] rounded-full animate-pulse animation-delay-150" />
+                  <div className="w-2 h-2 bg-[#7A5DF6] rounded-full animate-pulse animation-delay-300" />
                 </div>
                 <span className="text-body-large font-medium text-accent-black">
                   Processing...
@@ -133,10 +133,7 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
             </div>
           ) : isDragActive ? (
             <div className="animate-fade-in">
-              <p
-                className="text-title-h5 font-semibold mb-1"
-                style={{ color: "var(--heat-100)" }}
-              >
+              <p className="text-title-h5 font-semibold mb-1 text-[#7A5DF6]">
                 Drop it here!
               </p>
               <p className="text-sm text-black-alpha-64">
@@ -160,8 +157,8 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
               <p className="text-sm text-black-alpha-64 my-4">
                 or click to browse from your computer
               </p>
-              <Button className="inline-flex items-center mt-16 transition-all duration-200">
-                <Upload className="w-16 h-16" />
+              <Button className="inline-flex items-center mt-4 transition-all duration-200 bg-[#7A5DF6] hover:bg-[#6a4ee8] text-white">
+                <Upload className="w-[14px] h-[14px] mr-2" />
                 <span className="font-medium">Select CSV File</span>
               </Button>
             </div>
@@ -175,33 +172,22 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
           <p className="text-sm whitespace-pre-line text-red-600">{error}</p>
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full p-4 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full p-2 mt-4">
         {/* Download Sample */}
-        <Button
-          variant="primary"
-          className="flex flex-col items-start justify-center gap-1 p-4 text-left w-full h-full"
+        <Link
+          href="/sample-data.csv"
+          download="sample-data.csv"
+          className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#7A5DF6] hover:bg-[#6a4ee8] text-white transition-colors"
         >
-          <Link
-            href="/sample-data.csv"
-            download="sample-data.csv"
-            className="flex flex-col"
-          >
-            <div className="flex items-center gap-2">
-              <Download className="w-16 h-16 shrink-0" />
-              <span className="font-medium">Download Sample</span>
-            </div>
-            <span className="text-sm opacity-80">Try our Sample CSV File</span>
-          </Link>
-        </Button>
+          <Download className="w-[14px] h-[14px]" />
+          <span className="font-medium">Download Sample</span>
+        </Link>
 
         {/* Email Required */}
-        <Button
-          variant="secondary"
-          className="flex flex-col items-start justify-center gap-1 p-4 text-left w-full h-full"
-        >
+        <div className="flex flex-col items-start justify-center gap-1 p-3 rounded-lg border bg-gray-50 text-gray-700">
           <span className="font-medium">Email Required</span>
           <span className="text-sm opacity-80">Must contain email address</span>
-        </Button>
+        </div>
       </div>
     </div>
   );

@@ -42,7 +42,7 @@ export default function CoreFlame(attrs: HTMLAttributes<HTMLDivElement>) {
           )}
         >
           <div
-            className="text-black-alpha-20 relative left-0 font-ascii fc-decoration"
+            className="text-[#7A5DF6]/20 relative left-0 font-ascii fc-decoration"
             ref={ref}
             style={{
               whiteSpace: "pre",

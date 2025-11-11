@@ -10,7 +10,7 @@ export default function HomeHeroBadge() {
       <div className="px-8 text-label-x-small">AI Lead Enrichment</div>
 
       <div className="p-1">
-        <div className="size-18 bg-accent-black flex-center rounded-full group-hover:bg-heat-100 transition-all group-hover:w-30">
+  <div className="size-18 bg-accent-black flex-center rounded-full group-hover:bg-[#7A5DF6] transition-all group-hover:w-30">
           <svg
             fill="none"
             height="8"

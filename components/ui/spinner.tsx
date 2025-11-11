@@ -88,7 +88,7 @@ const Canvas = memo(function Canvas() {
     const render = () => {
       if (dead) return;
 
-      ctx.fillStyle = "#FA5D19";
+      ctx.fillStyle = "#7A5DF6";
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       for (let index = 0; index < 16; index++) {

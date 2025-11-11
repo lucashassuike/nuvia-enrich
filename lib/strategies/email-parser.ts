@@ -40,7 +40,7 @@ export function parseEmail(email: string): ParsedEmail | null {
       'deel': 'Deel',
       'scale': 'Scale AI',
       'wiz': 'Wiz',
-      'firecrawl': 'Firecrawl',
+      'firecrawl': 'Nuvia',
     };
     
     // Get the main domain part

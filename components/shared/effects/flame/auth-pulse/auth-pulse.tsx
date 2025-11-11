@@ -51,7 +51,7 @@ export function AuthPulse({
     >
       <div
         ref={ref}
-        className="text-heat-100 absolute inset-0 flex items-center justify-center fc-decoration"
+        className="text-[#7A5DF6] absolute inset-0 flex items-center justify-center fc-decoration"
         style={{
           whiteSpace: "pre",
           fontSize: "9px",

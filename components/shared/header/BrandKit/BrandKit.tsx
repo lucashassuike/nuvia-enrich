@@ -6,8 +6,6 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import FirecrawlIcon from "@/components/shared/firecrawl-icon/firecrawl-icon";
-import Logo from "@/components/shared/header/_svg/Logo";
 import { useHeaderContext } from "@/components/shared/header/HeaderContext";
 import { cn } from "@/utils/cn";
 
@@ -45,8 +43,8 @@ export default function HeaderBrandKit() {
           }
         }}
       >
-        <FirecrawlIcon className="size-28 -top-2 relative" />
-        <Logo />
+        {/* Simplify branding: remove flame icon, show text-only */}
+        <span className="text-accent-black font-semibold">Nuvia</span>
       </Link>
 
       <AnimatePresence initial={false} mode="popLayout">

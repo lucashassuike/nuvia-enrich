@@ -92,7 +92,7 @@ export function CSVPreview({ rows, columns, onEmailColumnConfirmed }: CSVPreview
                     >
                       {column}
                       {column === selectedColumn && (
-                        <span className="ml-1 text-orange-600">✓</span>
+            <span className="ml-1 text-[#7A5DF6]">✓</span>
                       )}
                     </th>
                   ))}
@@ -106,7 +106,7 @@ export function CSVPreview({ rows, columns, onEmailColumnConfirmed }: CSVPreview
                         key={column}
                         className={`px-3 py-1.5 whitespace-nowrap text-body-small ${
                           column === selectedColumn
-                            ? 'font-medium text-gray-900 bg-orange-50'
+            ? 'font-medium text-gray-900 bg-[#F4F1FF]'
                             : 'text-gray-500'
                         }`}
                       >
@@ -137,7 +137,7 @@ export function CSVPreview({ rows, columns, onEmailColumnConfirmed }: CSVPreview
         <Button
           onClick={handleConfirm}
           disabled={!selectedColumn}
-          variant="orange"
+          variant="default"
         >
           Confirm Email Column
         </Button>

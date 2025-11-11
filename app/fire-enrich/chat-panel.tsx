@@ -176,8 +176,8 @@ export function ChatPanel({
   };
 
   const getMessageIconColor = (type: ChatMessage["type"]) => {
-    // All icons use orange color
-    return "text-orange-600";
+// All icons use purple accent
+return "text-[#7A5DF6]";
   };
 
   if (!isExpanded) {
@@ -410,7 +410,7 @@ export function ChatPanel({
                   className="py-2 px-3 rounded-md bg-white border border-gray-200"
                 >
                   <p className={`text-body-x-small leading-relaxed break-words ${
-                    isUserMessage ? 'text-blue-900' : 'text-gray-900'
+  isUserMessage ? 'text-[#4c3ac7]' : 'text-gray-900'
                   }`}>
                     {msg.message}
                   </p>
@@ -452,7 +452,7 @@ export function ChatPanel({
               <button
                 type="submit"
                 disabled={!inputValue.trim()}
-                className="flex-shrink-0 px-10 py-6 rounded-10 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.995] shadow-sm hover:shadow-md"
+  className="flex-shrink-0 px-10 py-6 rounded-10 bg-gradient-to-br from-[#7A5DF6] to-[#6a4ee8] hover:from-[#6a4ee8] hover:to-[#5a3fe0] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.995] shadow-sm hover:shadow-md"
               >
                 <svg fill="none" height="16" viewBox="0 0 20 20" width="16" xmlns="http://www.w3.org/2000/svg" className="text-white">
                   <path d="M11.6667 4.79163L16.875 9.99994M16.875 9.99994L11.6667 15.2083M16.875 9.99994H3.125" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"></path>

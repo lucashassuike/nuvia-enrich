@@ -84,7 +84,7 @@ button {
 
 /* Selection color using design system colors */
 *::selection {
-  background-color: var(--heat-20);
+  background-color: #F4F1FF;
   color: var(--accent-black);
 }
 
@@ -96,7 +96,7 @@ a {
 }
 
 a:hover {
-  color: var(--heat-100);
+  color: #7A5DF6;
 }
 
 /* Code blocks */

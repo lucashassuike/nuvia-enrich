@@ -23,9 +23,8 @@ export function FlameBackground({
   // Speed increases with intensity
   const speed = Math.max(80 - (intensity / 100) * 40, 40);
 
-  // Color gets more orange with intensity
-  const color =
-    intensity > 80 ? "heat-100" : intensity > 50 ? "heat-40" : "black-alpha-20";
+  // Color gets more purple with intensity
+  const color = intensity > 80 ? "[#7A5DF6]" : intensity > 50 ? "[#9B84FA]" : "[#7A5DF6]/20";
 
   return (
     <div className={cn("relative", className)}>

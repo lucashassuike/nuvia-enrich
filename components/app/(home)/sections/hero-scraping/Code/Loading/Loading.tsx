@@ -50,11 +50,11 @@ export default function HeroScrapingCodeLoading({
         <AnimatePresence initial={false} mode="popLayout">
           <motion.div
             animate={{ opacity: 1, x: 0 }}
-            className="pr-12"
+            className="pr-12 text-[#7A5DF6]"
             exit={{ opacity: 0, x: 10 }}
             initial={{ opacity: 0, x: -10 }}
           >
-            {finished ? "Scrape Completed" : scrapingText}
+            {finished ? "Enrich Completed" : scrapingText}
           </motion.div>
         </AnimatePresence>
       </AnimatedWidth>

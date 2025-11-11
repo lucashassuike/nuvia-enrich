@@ -151,7 +151,7 @@ export function DetailModal({ isOpen, onClose, row, result, fields, emailColumn 
                           <ul className="space-y-0.5 text-sm">
                             {enrichment.value.map((item, idx) => (
                               <li key={idx} className="flex items-start gap-1">
-                                <span className="text-blue-600">•</span>
+  <span className="text-[#7A5DF6]">•</span>
                                 <span>{item}</span>
                               </li>
                             ))}
@@ -173,7 +173,7 @@ export function DetailModal({ isOpen, onClose, row, result, fields, emailColumn 
                 }
                 
                 return (
-                  <div key={field.name} className="mt-4 bg-blue-50 rounded-lg p-4">
+  <div key={field.name} className="mt-4 bg-[#F4F1FF] rounded-lg p-4">
                     <div className="flex items-start justify-between mb-2">
                       <h4 className="font-medium text-gray-900 text-sm">
                         {field.displayName}
@@ -186,7 +186,7 @@ export function DetailModal({ isOpen, onClose, row, result, fields, emailColumn 
                               href={url} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="block text-gray-600 hover:text-blue-600"
+  className="block text-gray-600 hover:text-[#7A5DF6]"
                             >
                               {(() => {
                                 try {

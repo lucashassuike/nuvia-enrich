@@ -1,6 +1,6 @@
 .string,
 .language-html .tag:not(.punctuation, .attr-name, .attr-value, .special-attr) {
-  color: var(--heat-100) !important;
+  color: #7A5DF6 !important;
 }
 
 .punctuation,

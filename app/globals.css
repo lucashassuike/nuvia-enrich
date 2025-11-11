@@ -284,7 +284,7 @@
 @keyframes processing-row-pulse {
   0%, 100% {
     opacity: 1;
-    background-color: rgb(254 243 199 / 0.5); /* from-orange-50 */
+ background-color: #F4F1FF; /* purple-50 */
   }
   50% {
     opacity: 0.85;

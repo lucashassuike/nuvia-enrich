@@ -243,9 +243,9 @@ export default function HomePage() {
                   </p>
                   <Link
                     className="bg-black-alpha-4 hover:bg-black-alpha-6 rounded-6 px-8 lg:px-6 text-label-large h-30 lg:h-24 block mt-8 mx-auto w-max gap-4 transition-all"
-                    href="https://azure.microsoft.com/products/ai-services/openai-service/"
+                    href="/"
                   >
-                    Powered by Azure OpenAI
+                    Powered by Nuvia
                   </Link>
                 </motion.div>
               ) : (

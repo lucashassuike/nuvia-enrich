@@ -347,7 +347,7 @@ export function UnifiedEnrichmentView({
                         <TableCell
                           key={colIdx}
                           className={cn(
-                            "bg-heat-8 transition-all duration-700 px-6 py-4 group/email",
+                            "bg-[#F4F1FF] transition-all duration-700 px-6 py-4 group/email",
                             "text-accent-black",
                           )}
                         >
@@ -557,7 +557,7 @@ export function UnifiedEnrichmentView({
 
                 return (
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-start rounded-md gap-6 p-8 border border-gray-200 bg-gray-100">
-                    <AlertCircle className="h-16 w-16 flex-shrink-0 text-orange-600" />
+  <AlertCircle className="h-16 w-16 flex-shrink-0 text-[#7A5DF6]" />
 
                     <div className="text-body-medium text-accent-black">
                       <strong>{skippableEmails.length} emails</strong> from

@@ -13,7 +13,7 @@ const robotoMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fire Enrich v2",
+  title: "Nuvia Enrich v2",
   description: "Enrich your data with AI-powered insights",
   icons: {
     icon: "/favicon.png",

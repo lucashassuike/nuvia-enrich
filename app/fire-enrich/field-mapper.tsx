@@ -205,7 +205,7 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
                   className={`inline-flex items-center px-2.5 py-1 rounded-full text-body-x-small font-medium transition-all ${
                     isSelected
                       ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      : "bg-orange-100 text-orange-900 hover:bg-orange-200"
+          : "bg-[#F4F1FF] text-[#4c3ac7] hover:bg-[#EDE9FE]"
                   }`}
                 >
                   {preset.displayName}
@@ -230,7 +230,7 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
 
         {/* Suggested Fields Preview */}
         {showSuggestions && suggestedFields.length > 0 && (
-          <div className="mb-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
+        <div className="mb-2 p-3 bg-[#F4F1FF] rounded-lg border border-[#EDE9FE]">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-body-small font-semibold text-gray-900">
                 Suggested Fields
@@ -249,7 +249,7 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
                 </Button>
                 <Button
                   onClick={acceptSuggestedFields}
-                  variant="orange"
+                  variant="default"
                   size="sm"
                   className="h-7 px-3 text-body-x-small"
                 >
@@ -473,7 +473,7 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
               <Button
                 onClick={addCustomField}
                 disabled={!customField.displayName || !customField.description}
-                variant="orange"
+                variant="default"
                 size="sm"
               >
                 Add
@@ -485,12 +485,12 @@ export function FieldMapper({ onFieldsSelected }: FieldMapperProps) {
 
       <div className="w-full mt-2">
         {selectedFields.length === 0 ? (
-          <Button disabled variant="orange" className="w-full">
+          <Button disabled variant="default" className="w-full">
             Selecione ao menos 1 campo
           </Button>
         ) : (
           <div className="flex items-center justify-between">
-            <Button onClick={handleProceed} variant="orange" className="flex-1">
+            <Button onClick={handleProceed} variant="default" className="flex-1">
               Confirmar campos
             </Button>
             <span className="ml-3 text-body-x-small text-gray-600">

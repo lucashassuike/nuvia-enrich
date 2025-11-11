@@ -40,7 +40,7 @@ export default function HeroFlame() {
     >
       <div className="flex-1 overflow-clip relative">
         <div
-          className="text-black-alpha-20 font-ascii absolute bottom-0 -left-380 fc-decoration"
+          className="text-[#7A5DF6]/20 font-ascii absolute bottom-0 -left-380 fc-decoration"
           dangerouslySetInnerHTML={{ __html: data[0] }}
           ref={ref}
           style={{
@@ -53,7 +53,7 @@ export default function HeroFlame() {
 
       <div className="flex-1 overflow-clip relative">
         <div
-          className="text-black-alpha-20 font-ascii absolute bottom-0 -right-380 -scale-x-100 fc-decoration"
+          className="text-[#7A5DF6]/20 font-ascii absolute bottom-0 -right-380 -scale-x-100 fc-decoration"
           dangerouslySetInnerHTML={{ __html: data[0] }}
           ref={ref2}
           style={{

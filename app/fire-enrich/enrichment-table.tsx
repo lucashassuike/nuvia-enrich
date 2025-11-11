@@ -46,7 +46,7 @@ export function EnrichmentTable({
     new Map(),
   );
   const [status, setStatus] = useState<
-    "idle" | "processing" | "completed" | "cancelled"
+    "idle" | "processing" | "completed" | "cancelled" | "error"
   >("idle");
   const [currentRow, setCurrentRow] = useState(-1);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -117,6 +117,7 @@ export function EnrichmentTable({
           displayName: 'Technologies',
           type: 'array',
           description: 'Detected technology stack',
+          required: false,
         });
       }
       if (hasProspects && !alreadyHasPros) {
@@ -125,6 +126,7 @@ export function EnrichmentTable({
           displayName: 'Prospects',
           type: 'array',
           description: 'Contacts or prospects discovered',
+          required: false,
         });
       }
       return [...fields, ...extras];
@@ -157,7 +159,7 @@ export function EnrichmentTable({
     let icon = 'globe';
     if (src.includes('apollo')) {
       label = 'Apollo';
-      classes = 'bg-blue-100 text-blue-700';
+      classes = 'bg-[#EDE9FE] text-[#7A5DF6]';
       icon = 'activity';
     } else if (src.includes('snov')) {
       label = 'Snov.io';
@@ -190,7 +192,7 @@ export function EnrichmentTable({
         <span aria-hidden>●</span>
         {label}
         {url && (
-          <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 ml-1 text-blue-600 hover:text-blue-800">
+          <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 ml-1 text-[#7A5DF6] hover:text-[#5a3fe0]">
             <ExternalLink style={{ width: '14px', height: '14px' }} />
           </a>
         )}
@@ -676,7 +678,7 @@ export function EnrichmentTable({
               <span className="text-gray-900 font-semibold">{sourceCounts.apollo} ({sourcePercent(sourceCounts.apollo)}%)</span>
             </div>
             <div className="h-2 w-full bg-gray-100 rounded">
-              <div className="h-2 bg-blue-600 rounded" style={{ width: `${sourcePercent(sourceCounts.apollo)}%` }} />
+      <div className="h-2 bg-[#7A5DF6] rounded" style={{ width: `${sourcePercent(sourceCounts.apollo)}%` }} />
             </div>
           </div>
           <div className="flex-1">
@@ -694,7 +696,7 @@ export function EnrichmentTable({
               <span className="text-gray-900 font-semibold">{sourceCounts.web} ({sourcePercent(sourceCounts.web)}%)</span>
             </div>
             <div className="h-2 w-full bg-gray-100 rounded">
-              <div className="h-2 bg-blue-600 rounded" style={{ width: `${sourcePercent(sourceCounts.web)}%` }} />
+      <div className="h-2 bg-[#7A5DF6] rounded" style={{ width: `${sourcePercent(sourceCounts.web)}%` }} />
             </div>
           </div>
               <div className="flex-1">
@@ -1157,10 +1159,10 @@ export function EnrichmentTable({
 
             <div className="flex items-center gap-3">
               {(status === "idle" || status === "error") && (
-                <div className="inline-flex items-center gap-2 px-3 py-2 rounded-6 bg-blue-50 border border-blue-200">
-                  <Activity style={{ width: '14px', height: '14px' }} className="animate-spin text-blue-600" />
-                  <span className="text-body-small text-blue-800">Iniciando enriquecimento automaticamente...</span>
-                </div>
+      <div className="inline-flex items-center gap-2 px-3 py-2 rounded-6 bg-[#F4F1FF] border border-[#EDE9FE]">
+        <Activity style={{ width: '14px', height: '14px' }} className="animate-spin text-[#7A5DF6]" />
+        <span className="text-body-small text-[#4c3ac7]">Iniciando enriquecimento automaticamente...</span>
+      </div>
               )}
               
               {(status === "completed" ||

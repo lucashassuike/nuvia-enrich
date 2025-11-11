@@ -39,7 +39,7 @@ export function AsciiExplosion(attrs: HTMLAttributes<HTMLDivElement>) {
       )}
     >
       <div
-        className="text-[#FA5D19] fc-decoration"
+        className="text-[#7A5DF6] fc-decoration"
         dangerouslySetInnerHTML={{ __html: data[0] }}
         ref={ref}
         style={{

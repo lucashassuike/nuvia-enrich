@@ -1,17 +1,17 @@
-# Fire Enrich
+# Nuvia Enrich
 
 A powerful AI-powered CSV enrichment tool that transforms basic contact lists into comprehensive business intelligence data using specialized AI agents, web scraping, and intelligent data extraction.
 
 ## Overview
 
-Fire Enrich is an advanced data enrichment platform that takes CSV files containing company email addresses and automatically enhances them with valuable business information. Built on a sophisticated multi-agent architecture, it leverages Azure OpenAI for search/scrape and GPT-based intelligent data extraction.
+Nuvia Enrich is an advanced data enrichment platform that takes CSV files containing company email addresses and automatically enhances them with valuable business information. Built on a sophisticated multi-agent architecture, it leverages Azure OpenAI for search/scrape and GPT-based intelligent data extraction.
 
 ## Architecture
 
 ### Core Components
 
 #### 1. Multi-Agent System
-Fire Enrich employs five specialized AI agents, each optimized for specific data extraction tasks:
+Nuvia Enrich employs five specialized AI agents, each optimized for specific data extraction tasks:
 
 - **Company Research Agent**: Extracts company fundamentals (name, description, industry, employee count)
 - **Fundraising Intelligence Agent**: Discovers funding rounds, investors, and valuation data
@@ -85,7 +85,7 @@ Includes confidence scores and sources
 
 ### API Key Configuration
 
-Fire Enrich supports Azure OpenAI or OpenAI:
+Nuvia Enrich supports Azure OpenAI or OpenAI:
 
 #### Option A: Azure OpenAI (recommended)
 - Set the following in `.env.local`:
@@ -132,8 +132,8 @@ pnpm dev
 
 ### Alternative: Browser-based API Keys
 
-If you prefer not to use environment variables, Fire Enrich supports entering API keys directly in the browser:
-1. Visit the Fire Enrich page
+If you prefer not to use environment variables, Nuvia Enrich supports entering API keys directly in the browser:
+1. Visit the Nuvia Enrich page
 2. Click "Enter API Keys" when prompted
 3. Keys are stored securely in localStorage
 

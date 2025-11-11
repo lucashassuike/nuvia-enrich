@@ -63,7 +63,7 @@ const Button = forwardRef<HTMLButtonElement, Props>(
             "text-accent-white",
             // Hover/active only when interactive
             !isNonInteractive &&
-              "hover:bg-[color:var(--heat-90)] active:[scale:0.995]",
+              "hover:bg-[#6a4ee8] active:[scale:0.995]",
             // Disabled: dim a bit, no hover, dim overlay bg layer if present
             "disabled:opacity-80",
             "disabled:[&_.button-background]:opacity-70",

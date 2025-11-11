@@ -82,7 +82,7 @@ export function SourceContextTooltip({ sources, legacySource, sourceCount, corro
   
   const classifyLegacy = (legacy?: string) => {
     const s = (legacy || '').toLowerCase();
-    if (s.includes('apollo')) return { label: 'Apollo', classes: 'bg-blue-100 text-blue-700', Icon: Activity };
+  if (s.includes('apollo')) return { label: 'Apollo', classes: 'bg-[#EDE9FE] text-[#7A5DF6]', Icon: Activity };
     if (s.includes('snov')) return { label: 'Snov.io', classes: 'bg-purple-100 text-purple-700', Icon: CheckCircle };
     return { label: 'Web Research', classes: 'bg-teal-100 text-teal-700', Icon: Globe };
   };
@@ -156,7 +156,7 @@ export function SourceContextTooltip({ sources, legacySource, sourceCount, corro
             </div>
             {corroboration && (
               <p className={`text-xs mt-1 ${
-                corroboration.sources_agree ? 'text-green-600' : 'text-amber-600'
+                corroboration.sources_agree ? 'text-green-600' : 'text-[#7A5DF6]'
               }`}>
                 Sources {corroboration.sources_agree ? 'agree' : 'have different values'}
               </p>
@@ -177,7 +177,7 @@ export function SourceContextTooltip({ sources, legacySource, sourceCount, corro
                       href={source.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+      className="inline-flex items-center gap-1 text-xs text-[#7A5DF6] hover:text-[#5a3fe0] font-medium"
                     >
                       {getDomain(source.url)}
                       <ExternalLink className="w-3 h-3" />
@@ -188,7 +188,7 @@ export function SourceContextTooltip({ sources, legacySource, sourceCount, corro
                     href={source.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+      className="inline-flex items-center gap-1 text-xs text-[#7A5DF6] hover:text-[#5a3fe0]"
                   >
                     {getDomain(source.url)}
                     <ExternalLink className="w-3 h-3" />

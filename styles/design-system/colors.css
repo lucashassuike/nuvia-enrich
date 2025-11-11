@@ -5,20 +5,20 @@
   --white: #ffffff;
   --black: #000000;
   
-  /* Fire-inspired heat colors */
-  --heat-4: rgba(250, 93, 25, 0.039);
-  --heat-8: rgba(250, 93, 25, 0.078);
-  --heat-12: rgba(250, 93, 25, 0.122);
-  --heat-16: rgba(250, 93, 25, 0.161);
-  --heat-20: rgba(250, 93, 25, 0.200);
-  --heat-40: rgba(250, 93, 25, 0.400);
-  --heat-100: #fa5d19;
-  --heat-200: #ff6600;
+  /* Heat colors repurposed to Nuvia purple */
+  --heat-4: rgba(122, 93, 246, 0.039);
+  --heat-8: rgba(122, 93, 246, 0.078);
+  --heat-12: rgba(122, 93, 246, 0.122);
+  --heat-16: rgba(122, 93, 246, 0.161);
+  --heat-20: rgba(122, 93, 246, 0.200);
+  --heat-40: rgba(122, 93, 246, 0.400);
+  --heat-100: #7A5DF6;
+  --heat-200: #6a4ee8;
   
   /* Accent colors */
   --accent-black: #262626;
   --accent-white: #ffffff;
-  --accent-amethyst: #9061ff;
+  --accent-amethyst: #7A5DF6;
   --accent-bluetron: #2a6dfb;
   --accent-crimson: #eb3424;
   
@@ -81,7 +81,8 @@
     --heat-16: color(display-p3 0.980392 0.364706 0.098039 / 0.160784);
     --heat-20: color(display-p3 0.980392 0.364706 0.098039 / 0.200000);
     --heat-40: color(display-p3 0.980392 0.364706 0.098039 / 0.400000);
-    --heat-100: color(display-p3 0.980392 0.364706 0.098039 / 1.000000);
+  /* Display-P3 equivalents for purple */
+  --heat-100: color(display-p3 0.521568 0.364706 0.964706 / 1.000000);
     --heat-200: color(display-p3 1.000000 0.400000 0.000000 / 1.000000);
     
     /* Accent colors */

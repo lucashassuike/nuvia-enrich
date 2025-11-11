@@ -98,7 +98,7 @@ export function HeroFlame({ className, size = "medium" }: HeroFlameProps) {
       <div className="relative overflow-hidden">
         <pre
           className={cn(
-            "text-heat-100 whitespace-pre",
+            "text-[#7A5DF6] whitespace-pre",
             sizeClasses[size],
           )}
         >
@@ -110,7 +110,7 @@ export function HeroFlame({ className, size = "medium" }: HeroFlameProps) {
       <div className="relative overflow-hidden -scale-x-100">
         <pre
           className={cn(
-            "text-heat-100 whitespace-pre",
+            "text-[#7A5DF6] whitespace-pre",
             sizeClasses[size],
           )}
         >

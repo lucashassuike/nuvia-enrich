@@ -49,7 +49,7 @@ export default function GithubFlame(attrs: HTMLAttributes<HTMLDivElement>) {
         )}
       >
         <div
-          className="text-black-alpha-20 relative top-0 left-0 font-ascii fc-decoration"
+          className="text-[#7A5DF6]/20 relative top-0 left-0 font-ascii fc-decoration"
           ref={ref}
           style={{
             whiteSpace: "pre",

@@ -154,20 +154,30 @@ export default function CSVEnrichmentPage() {
   
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-4 max-w-7xl mx-auto font-inter">
-        <div className="flex justify-between items-center">
-          <div />
+        {/* Header */}
+        <div className="flex justify-between items-center py-3">
+          <div className="text-sm font-semibold tracking-tight text-[#1F2937]">Nuvia</div>
           <div />
         </div>
-  
+
+        {/* Hero */}
         <div className="text-center pt-8 pb-6">
-          <h1 className="text-[2.5rem] lg:text-[3.8rem] text-[#36322F] dark:text-white font-semibold tracking-tight leading-[0.9] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:200ms] [animation-fill-mode:forwards]">
-            <span className="relative px-1 text-transparent bg-clip-text bg-gradient-to-tr from-red-600 to-yellow-500 inline-flex justify-center items-center">
-              Fire Enrich v2
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border bg-white shadow-sm text-xs text-gray-700 mb-4">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#7A5DF6]" />
+            AI Lead Enrichment
+          </div>
+          <h1 className="text-[2.5rem] lg:text-[3.8rem] text-[#1F2937] dark:text-white font-semibold tracking-tight leading-[0.9] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:200ms] [animation-fill-mode:forwards]">
+            <span className="relative px-1">
+              Nuvia Enrich v2
             </span>
-            <span className="block leading-[1.1] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:400ms] [animation-fill-mode:forwards]">
-              Drag, Drop, Enrich.
+            <span className="block leading-[1.1] text-transparent bg-clip-text bg-gradient-to-tr from-[#7A5DF6] to-[#a693ff] opacity-0 animate-fade-up [animation-duration:500ms] [animation-delay:400ms] [animation-fill-mode:forwards]">
+              Drag, Drop, Enrich
             </span>
           </h1>
+          <p className="mt-4 text-sm md:text-base text-gray-600 max-w-xl mx-auto">
+            Enrich your leads with clean & accurate data crawled from all over the internet.
+          </p>
+          <p className="mt-1 text-xs text-gray-500">Powered by Nuvia</p>
         </div>
   
         {/* Main Content */}
@@ -177,7 +187,7 @@ export default function CSVEnrichmentPage() {
             <p className="text-sm text-muted-foreground">Initializing...</p>
           </div>
         ) : (
-          <div className="bg-[#FBFAF9] p-4 sm:p-6 rounded-lg shadow-sm">
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md border">
             {step === "setup" && (
               <Button
                 variant="code"
@@ -189,7 +199,7 @@ export default function CSVEnrichmentPage() {
                 Back
               </Button>
             )}
-  
+
             {step === "upload" && <CSVUploader onUpload={handleCSVUpload} />}
   
             {step === "setup" && csvData && (
@@ -216,7 +226,7 @@ export default function CSVEnrichmentPage() {
                   emailColumn={emailColumn}
                 />
                 <div className="mt-6 text-center">
-                  <Button variant="orange" onClick={resetProcess}>
+                  <Button variant="default" onClick={resetProcess}>
                     Start New Enrichment
                   </Button>
                 </div>
@@ -227,7 +237,7 @@ export default function CSVEnrichmentPage() {
   
         <footer className="py-8 text-center text-sm text-gray-600 dark:text-gray-400">
           <p>
-            Powered by Azure OpenAI
+            Powered by Nuvia
           </p>
         </footer>
   
